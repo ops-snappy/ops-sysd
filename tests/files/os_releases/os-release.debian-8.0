@@ -1,0 +1,7 @@
+ID=debian
+NAME=Debian
+VERSION=8.0
+VERSION_ID=8.0
+PRETTY_NAME=Debian 8.0
+HOME_URL=http://www.debian.org
+BUILD_ID=release_image

@@ -1,0 +1,7 @@
+ID=openswitch
+NAME=OpenSwitch
+VERSION=0.1.0 (basil)
+VERSION_ID=0.1.0
+PRETTY_NAME=OpenSwitch 0.1.0 (basil)
+HOME_URL=http://www.openswitch.net
+BUILD_ID=developer_image

@@ -79,6 +79,10 @@ For the first release of OpenSwitch, sysd supports only the **base subsystem** a
 The following OpenSwitch database schema elements are referenced or set by sysd:
 ```
 system table
+  system:software_info:os_name
+      ->set to the OS name provided by /etc/os-release file.
+  system:switch_version
+      ->set to the switch version provided by /etc/os-release file.
   system:cur_hw
       ->set to "1" when all hardware daemons have completed initialization
   system:next_hw
