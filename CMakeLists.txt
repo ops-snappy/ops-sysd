@@ -59,14 +59,14 @@ include_directories (${PROJECT_BINARY_DIR}/${INCL_DIR}
                      ${OVSCOMMON_INCLUDE_DIRS})
 
 # Source files to build ops-sysd
+set (SOURCES ${SRC_DIR}/sysd.c
+             ${SRC_DIR}/sysd_cfg_yaml.c
+             ${SRC_DIR}/sysd_fru.c
+             ${SRC_DIR}/sysd_ovsdb_if.c
+             ${SRC_DIR}/sysd_qos_utils.c
+             ${SRC_DIR}/sysd_util.c)
 if (PLATFORM_SIMULATION)
-        set (SOURCES ${SRC_DIR}/sysd.c ${SRC_DIR}/sysd_cfg_yaml.c
-                     ${SRC_DIR}/sysd_fru.c ${SRC_DIR}/sysd_ovsdb_if.c
-                     ${SRC_DIR}/sysd_util.c ${SRC_DIR}/sysd_stub_x86_fru.c)
-else ()
-        set (SOURCES ${SRC_DIR}/sysd.c ${SRC_DIR}/sysd_cfg_yaml.c
-                     ${SRC_DIR}/sysd_fru.c ${SRC_DIR}/sysd_ovsdb_if.c
-                     ${SRC_DIR}/sysd_util.c)
+        LIST(APPEND SOURCES ${SRC_DIR}/sysd_stub_x86_fru.c)
 endif ()
 
 # Rules to build ops-sysd
