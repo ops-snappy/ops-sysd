@@ -40,6 +40,7 @@
 
 #include <ops-utils.h>
 #include <config-yaml.h>
+#include "qos_init.h"
 #include "sysd.h"
 #include "sysd_util.h"
 #include "sysd_ovsdb_if.h"
@@ -528,6 +529,12 @@ sysd_initial_configure(struct ovsdb_idl_txn *txn)
      */
     sysd_update_sw_info(sys);
 
+    /* QoS init */
+    qos_init_trust(txn, sys);
+    qos_init_dscp_map(txn, sys);
+    qos_init_cos_map(txn, sys);
+    qos_init_queue_profile(txn, sys);
+    qos_init_schedule_profile(txn, sys);
 } /* sysd_initial_configure */
 
 static void
