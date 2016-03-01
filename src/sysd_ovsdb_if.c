@@ -389,24 +389,31 @@ sysd_configure_default_vrf(struct ovsdb_idl_txn *txn,
 static void
 sysd_update_sw_info(const struct ovsrec_system *cfg)
 {
+#define NSTR  80 /* Max length of each line of /etc/os-release. */
     struct smap smap = SMAP_INITIALIZER(&smap);
     FILE   *os_ver_fp = NULL;
     char   *file_line = NULL;
-    char   file_var_name[64] = "";
-    char   file_var_value[64] = "";
-    char   build_id_value[32] = "";
-    char   version_id_value[32] = "";
-    size_t line_len;
+    char   file_var_name[NSTR];
+    char   file_var_value[NSTR];
+    char   version_id[NSTR];
+    char   build_id[NSTR];
+    size_t line_len = 0;
 
     /* Open os-release file with the os version information */
     os_ver_fp = fopen(OS_RELEASE_FILE_PATH, "r");
     if (NULL == os_ver_fp) {
-        VLOG_ERR("Unable to find system OS release. File %s was not found", OS_RELEASE_FILE_PATH);
+        VLOG_ERR("Unable to find system OS release. File %s was not found",
+                 OS_RELEASE_FILE_PATH);
         return;
     }
 
     /* Scanning file for variables */
+    file_var_name[0] = file_var_value[0] = '\0';
     while (getline(&file_line, &line_len, os_ver_fp) != -1) {
+        if (file_line == NULL || strlen(file_line) > NSTR) {
+            /* Limit the whole line length to NSTR length.  */
+            continue;
+        }
         sscanf(file_line, "%[^=]=%s", file_var_name, file_var_value);
 
         /* Release name value.  */
@@ -416,18 +423,28 @@ sysd_update_sw_info(const struct ovsrec_system *cfg)
 
         /* Version ID value*/
         } else if (strcmp(file_var_name, OS_RELEASE_VERSION_NAME) == 0) {
-            strcpy(version_id_value, file_var_value);
+            strncpy(version_id, file_var_value, NSTR - 1);
+            /* in case file_var_value is longer than NSTR - 1 */
+            version_id[NSTR - 1] = '\0';
 
         /* Build ID value*/
         } else if (strcmp(file_var_name, OS_RELEASE_BUILD_NAME) == 0) {
-            strcpy(build_id_value, file_var_value);
-
+            strncpy(build_id, file_var_value, NSTR - 1);
+            /* in case file_var_value is longer than NSTR - 1 */
+            build_id[NSTR - 1] = '\0';
         }
 
         /* Avoid the value carry over. */
-        file_var_value[0] = '\0';
+        file_var_name[0] = file_var_value[0] = '\0';
     }
     fclose(os_ver_fp);
+    if (file_line != NULL) {
+        /*
+         * As getline(3) explains, caller of the getline() needs to
+         * free the dynamically allocated memory.
+         */
+        free(file_line);
+    }
 
     /* Update the software info column. */
     if (!smap_is_empty(&smap)) {
@@ -436,17 +453,15 @@ sysd_update_sw_info(const struct ovsrec_system *cfg)
     smap_destroy(&smap);
 
     /* Check if version id and build id was found*/
-    if ( (strlen(build_id_value) != 0) && (strlen(version_id_value) != 0) ) {
-
-        /* Cleaning the variable where the switch version will be save */
-        memset(file_var_value, 0, sizeof(char) * 64);
-
+    if (build_id[0] != '\0' && version_id[0] != '\0') {
         /* Building the version string */
-        snprintf(file_var_value, 64,"%s (Build: %s)", version_id_value, build_id_value);
+        snprintf(file_var_value, NSTR, "%s (Build: %s)",
+                 version_id, build_id);
 
         ovsrec_system_set_switch_version(cfg, file_var_value);
     } else {
-        VLOG_ERR("%s or %s was not found on %s", OS_RELEASE_VERSION_NAME, OS_RELEASE_BUILD_NAME, OS_RELEASE_FILE_PATH);
+        VLOG_ERR("%s or %s was not found on %s", OS_RELEASE_VERSION_NAME,
+                 OS_RELEASE_BUILD_NAME, OS_RELEASE_FILE_PATH);
         return;
     }
 

@@ -246,3 +246,9 @@ class TestRunner:
 
     def test_debian_8_0_version(self):
         self.test.check_switch_version("os-release.debian-8.0")
+
+    def test_long_name(self):
+        self.test.check_os_name("os-release.long-name-and-build-id")
+
+    def test_long_version(self):
+        self.test.check_switch_version("os-release.long-name-and-build-id")
