@@ -42,6 +42,12 @@
 
 #define QOS_DSCP_MAP_ENTRY_COUNT 64
 
+#define QOS_DEFAULT_CODE_POINT_KEY "default_code_point"
+#define QOS_DEFAULT_LOCAL_PRIORITY_KEY "default_local_priority"
+#define QOS_DEFAULT_PRIORITY_CODE_POINT_KEY "default_priority_code_point"
+#define QOS_DEFAULT_COLOR_KEY "default_color"
+#define QOS_DEFAULT_DESCRIPTION_KEY "default_description"
+
 /**
  * Creates an instance of the default cos map. The instance should be
  * destroyed when it is no longer in use.
@@ -52,16 +58,5 @@ struct ovsrec_qos_cos_map_entry *qos_create_default_cos_map(void);
  * Destroys an instance of the default cos map.
  */
 void qos_destroy_default_cos_map(struct ovsrec_qos_cos_map_entry *cos_map);
-
-/**
- * Creates an instance of the default dscp map. The instance should be
- * destroyed when it is no longer in use.
- */
-struct ovsrec_qos_dscp_map_entry *qos_create_default_dscp_map(void);
-
-/**
- * Destroys an instance of the default dscp map.
- */
-void qos_destroy_default_dscp_map(struct ovsrec_qos_dscp_map_entry *dscp_map);
 
 #endif /* _SYSD_QOS_UTILS_H_ */

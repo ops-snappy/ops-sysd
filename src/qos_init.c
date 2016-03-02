@@ -371,30 +371,122 @@ void qos_init_cos_map(struct ovsdb_idl_txn *txn,
     qos_destroy_default_cos_map(default_cos_map);
 }
 
+static void set_dscp_map_entry(struct ovsrec_qos_dscp_map_entry *dscp_map_entry,
+        int64_t code_point, int64_t local_priority,
+        int64_t priority_code_point, char *color, char *description) {
+    /* Initialize the actual config. */
+    ovsrec_qos_dscp_map_entry_set_code_point(dscp_map_entry, code_point);
+    ovsrec_qos_dscp_map_entry_set_local_priority(dscp_map_entry, local_priority);
+    ovsrec_qos_dscp_map_entry_set_priority_code_point(dscp_map_entry, &priority_code_point, 1);
+    ovsrec_qos_dscp_map_entry_set_color(dscp_map_entry, color);
+    ovsrec_qos_dscp_map_entry_set_description(dscp_map_entry, description);
+
+    char code_point_buffer[QOS_CLI_STRING_BUFFER_SIZE];
+    sprintf(code_point_buffer, "%d", (int) code_point);
+    char local_priority_buffer[QOS_CLI_STRING_BUFFER_SIZE];
+    sprintf(local_priority_buffer, "%d", (int) local_priority);
+    char priority_code_point_buffer[QOS_CLI_STRING_BUFFER_SIZE];
+    sprintf(priority_code_point_buffer, "%d", (int) priority_code_point);
+
+    /* Save the factory defaults so they can be restored later. */
+    struct smap smap;
+    smap_clone(&smap, &dscp_map_entry->hw_defaults);
+    smap_replace(&smap, QOS_DEFAULT_CODE_POINT_KEY, code_point_buffer);
+    smap_replace(&smap, QOS_DEFAULT_LOCAL_PRIORITY_KEY, local_priority_buffer);
+    smap_replace(&smap, QOS_DEFAULT_PRIORITY_CODE_POINT_KEY, priority_code_point_buffer);
+    smap_replace(&smap, QOS_DEFAULT_COLOR_KEY, color);
+    smap_replace(&smap, QOS_DEFAULT_DESCRIPTION_KEY, description);
+    ovsrec_qos_dscp_map_entry_set_hw_defaults(dscp_map_entry, &smap);
+    smap_destroy(&smap);
+}
+
+static void qos_init_default_dscp_map(
+        struct ovsrec_qos_dscp_map_entry **dscp_map) {
+    set_dscp_map_entry(dscp_map[0], 0, 0, 1, "green", "CS0");
+    set_dscp_map_entry(dscp_map[1], 1, 0, 1, "green", "");
+    set_dscp_map_entry(dscp_map[2], 2, 0, 1, "green", "");
+    set_dscp_map_entry(dscp_map[3], 3, 0, 1, "green", "");
+    set_dscp_map_entry(dscp_map[4], 4, 0, 1, "green", "");
+    set_dscp_map_entry(dscp_map[5], 5, 0, 1, "green", "");
+    set_dscp_map_entry(dscp_map[6], 6, 0, 1, "green", "");
+    set_dscp_map_entry(dscp_map[7], 7, 0, 1, "green", "");
+    set_dscp_map_entry(dscp_map[8], 8, 1, 0, "green", "CS1");
+    set_dscp_map_entry(dscp_map[9], 9, 1, 0, "green", "");
+
+    set_dscp_map_entry(dscp_map[10], 10, 1, 0, "green", "AF11");
+    set_dscp_map_entry(dscp_map[11], 11, 1, 0, "green", "");
+    set_dscp_map_entry(dscp_map[12], 12, 1, 0, "yellow", "AF12");
+    set_dscp_map_entry(dscp_map[13], 13, 1, 0, "green", "");
+    set_dscp_map_entry(dscp_map[14], 14, 1, 0, "red", "AF13");
+    set_dscp_map_entry(dscp_map[15], 15, 1, 0, "green", "");
+    set_dscp_map_entry(dscp_map[16], 16, 2, 2, "green", "CS2");
+    set_dscp_map_entry(dscp_map[17], 17, 2, 2, "green", "");
+    set_dscp_map_entry(dscp_map[18], 18, 2, 2, "green", "AF21");
+    set_dscp_map_entry(dscp_map[19], 19, 2, 2, "green", "");
+
+    set_dscp_map_entry(dscp_map[20], 20, 2, 2, "yellow", "AF22");
+    set_dscp_map_entry(dscp_map[21], 21, 2, 2, "green", "");
+    set_dscp_map_entry(dscp_map[22], 22, 2, 2, "red", "AF23");
+    set_dscp_map_entry(dscp_map[23], 23, 2, 2, "green", "");
+    set_dscp_map_entry(dscp_map[24], 24, 3, 3, "green", "CS3");
+    set_dscp_map_entry(dscp_map[25], 25, 3, 3, "green", "");
+    set_dscp_map_entry(dscp_map[26], 26, 3, 3, "green", "AF31");
+    set_dscp_map_entry(dscp_map[27], 27, 3, 3, "green", "");
+    set_dscp_map_entry(dscp_map[28], 28, 3, 3, "yellow", "AF32");
+    set_dscp_map_entry(dscp_map[29], 29, 3, 3, "green", "");
+
+    set_dscp_map_entry(dscp_map[30], 30, 3, 3, "red", "AF33");
+    set_dscp_map_entry(dscp_map[31], 31, 3, 3, "green", "");
+    set_dscp_map_entry(dscp_map[32], 32, 4, 4, "green", "CS4");
+    set_dscp_map_entry(dscp_map[33], 33, 4, 4, "green", "");
+    set_dscp_map_entry(dscp_map[34], 34, 4, 4, "green", "AF41");
+    set_dscp_map_entry(dscp_map[35], 35, 4, 4, "green", "");
+    set_dscp_map_entry(dscp_map[36], 36, 4, 4, "yellow", "AF42");
+    set_dscp_map_entry(dscp_map[37], 37, 4, 4, "green", "");
+    set_dscp_map_entry(dscp_map[38], 38, 4, 4, "red", "AF43");
+    set_dscp_map_entry(dscp_map[39], 39, 4, 4, "green", "");
+
+    set_dscp_map_entry(dscp_map[40], 40, 5, 5, "green", "CS5");
+    set_dscp_map_entry(dscp_map[41], 41, 5, 5, "green", "");
+    set_dscp_map_entry(dscp_map[42], 42, 5, 5, "green", "");
+    set_dscp_map_entry(dscp_map[43], 43, 5, 5, "green", "");
+    set_dscp_map_entry(dscp_map[44], 44, 5, 5, "green", "");
+    set_dscp_map_entry(dscp_map[45], 45, 5, 5, "green", "");
+    set_dscp_map_entry(dscp_map[46], 46, 5, 5, "green", "EF");
+    set_dscp_map_entry(dscp_map[47], 47, 5, 5, "green", "");
+    set_dscp_map_entry(dscp_map[48], 48, 6, 6, "green", "CS6");
+    set_dscp_map_entry(dscp_map[49], 49, 6, 6, "green", "");
+
+    set_dscp_map_entry(dscp_map[50], 50, 6, 6, "green", "");
+    set_dscp_map_entry(dscp_map[51], 51, 6, 6, "green", "");
+    set_dscp_map_entry(dscp_map[52], 52, 6, 6, "green", "");
+    set_dscp_map_entry(dscp_map[53], 53, 6, 6, "green", "");
+    set_dscp_map_entry(dscp_map[54], 54, 6, 6, "green", "");
+    set_dscp_map_entry(dscp_map[55], 55, 6, 6, "green", "");
+    set_dscp_map_entry(dscp_map[56], 56, 7, 7, "green", "CS7");
+    set_dscp_map_entry(dscp_map[57], 57, 7, 7, "green", "");
+    set_dscp_map_entry(dscp_map[58], 58, 7, 7, "green", "");
+    set_dscp_map_entry(dscp_map[59], 59, 7, 7, "green", "");
+
+    set_dscp_map_entry(dscp_map[60], 60, 7, 7, "green", "");
+    set_dscp_map_entry(dscp_map[61], 61, 7, 7, "green", "");
+    set_dscp_map_entry(dscp_map[62], 62, 7, 7, "green", "");
+    set_dscp_map_entry(dscp_map[63], 63, 7, 7, "green", "");
+}
+
 void qos_init_dscp_map(struct ovsdb_idl_txn *txn,
                            struct ovsrec_system *system_row) {
-    struct ovsrec_qos_dscp_map_entry *default_dscp_map =
-            qos_create_default_dscp_map();
-
     /* Create the dscp-map rows. */
     struct ovsrec_qos_dscp_map_entry *dscp_map_rows[QOS_DSCP_MAP_ENTRY_COUNT];
     int i;
     for (i = 0; i < QOS_DSCP_MAP_ENTRY_COUNT; i++) {
-        struct ovsrec_qos_dscp_map_entry *dscp_map_row = ovsrec_qos_dscp_map_entry_insert(
-                txn);
-        ovsrec_qos_dscp_map_entry_set_code_point(dscp_map_row,
-                default_dscp_map[i].code_point);
-        ovsrec_qos_dscp_map_entry_set_local_priority(dscp_map_row,
-                default_dscp_map[i].local_priority);
-        ovsrec_qos_dscp_map_entry_set_priority_code_point(dscp_map_row,
-                default_dscp_map[i].priority_code_point, 1);
-        ovsrec_qos_dscp_map_entry_set_color(dscp_map_row,
-                default_dscp_map[i].color);
-        ovsrec_qos_dscp_map_entry_set_description(dscp_map_row,
-                default_dscp_map[i].description);
-
+        struct ovsrec_qos_dscp_map_entry *dscp_map_row =
+                ovsrec_qos_dscp_map_entry_insert(txn);
         dscp_map_rows[i] = dscp_map_row;
     }
+
+    /* Update the dscp-map rows. */
+    qos_init_default_dscp_map(dscp_map_rows);
 
     /* Update the system row. */
     struct ovsrec_qos_dscp_map_entry **value_list = xmalloc(
@@ -406,8 +498,6 @@ void qos_init_dscp_map(struct ovsdb_idl_txn *txn,
     ovsrec_system_set_qos_dscp_map_entries(system_row, value_list,
             QOS_DSCP_MAP_ENTRY_COUNT);
     free(value_list);
-
-    qos_destroy_default_dscp_map(default_dscp_map);
 }
 
 void qos_init_queue_profile(struct ovsdb_idl_txn *txn,
