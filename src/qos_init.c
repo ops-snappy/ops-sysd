@@ -336,39 +336,67 @@ void qos_init_trust(struct ovsdb_idl_txn *txn,
     smap_destroy(&smap);
 }
 
+static void set_cos_map_entry(struct ovsrec_qos_cos_map_entry *cos_map_entry,
+        int64_t code_point, int64_t local_priority,
+        char *color, char *description) {
+    /* Initialize the actual config. */
+    ovsrec_qos_cos_map_entry_set_code_point(cos_map_entry, code_point);
+    ovsrec_qos_cos_map_entry_set_local_priority(cos_map_entry, local_priority);
+    ovsrec_qos_cos_map_entry_set_color(cos_map_entry, color);
+    ovsrec_qos_cos_map_entry_set_description(cos_map_entry, description);
+
+    char code_point_buffer[QOS_CLI_STRING_BUFFER_SIZE];
+    sprintf(code_point_buffer, "%d", (int) code_point);
+    char local_priority_buffer[QOS_CLI_STRING_BUFFER_SIZE];
+    sprintf(local_priority_buffer, "%d", (int) local_priority);
+
+    /* Save the factory defaults so they can be restored later. */
+    struct smap smap;
+    smap_clone(&smap, &cos_map_entry->hw_defaults);
+    smap_replace(&smap, QOS_DEFAULT_CODE_POINT_KEY, code_point_buffer);
+    smap_replace(&smap, QOS_DEFAULT_LOCAL_PRIORITY_KEY, local_priority_buffer);
+    smap_replace(&smap, QOS_DEFAULT_COLOR_KEY, color);
+    smap_replace(&smap, QOS_DEFAULT_DESCRIPTION_KEY, description);
+    ovsrec_qos_cos_map_entry_set_hw_defaults(cos_map_entry, &smap);
+    smap_destroy(&smap);
+}
+
+static void qos_init_default_cos_map(
+        struct ovsrec_qos_cos_map_entry **cos_map) {
+    set_cos_map_entry(cos_map[0], 0, 1, "green", "Best_Effort");
+    set_cos_map_entry(cos_map[1], 1, 0, "green", "Background");
+    set_cos_map_entry(cos_map[2], 2, 2, "green", "Excellent_Effort");
+    set_cos_map_entry(cos_map[3], 3, 3, "green", "Critical_Applications");
+    set_cos_map_entry(cos_map[4], 4, 4, "green", "Video");
+    set_cos_map_entry(cos_map[5], 5, 5, "green", "Voice");
+    set_cos_map_entry(cos_map[6], 6, 6, "green", "Internetwork_Control");
+    set_cos_map_entry(cos_map[7], 7, 7, "green", "Network_Control");
+}
+
 void qos_init_cos_map(struct ovsdb_idl_txn *txn,
                            struct ovsrec_system *system_row) {
-    struct ovsrec_qos_cos_map_entry *default_cos_map = qos_create_default_cos_map();
-
     /* Create the cos-map rows. */
     struct ovsrec_qos_cos_map_entry *cos_map_rows[QOS_COS_MAP_ENTRY_COUNT];
     int i;
     for (i = 0; i < QOS_COS_MAP_ENTRY_COUNT; i++) {
-        struct ovsrec_qos_cos_map_entry *cos_map_row = ovsrec_qos_cos_map_entry_insert(
-                txn);
-        ovsrec_qos_cos_map_entry_set_code_point(cos_map_row,
-                default_cos_map[i].code_point);
-        ovsrec_qos_cos_map_entry_set_local_priority(cos_map_row,
-                default_cos_map[i].local_priority);
-        ovsrec_qos_cos_map_entry_set_color(cos_map_row,
-                default_cos_map[i].color);
-        ovsrec_qos_cos_map_entry_set_description(cos_map_row,
-                default_cos_map[i].description);
-
+        struct ovsrec_qos_cos_map_entry *cos_map_row =
+                ovsrec_qos_cos_map_entry_insert(txn);
         cos_map_rows[i] = cos_map_row;
     }
 
+    /* Update the cos-map rows. */
+    qos_init_default_cos_map(cos_map_rows);
+
     /* Update the system row. */
     struct ovsrec_qos_cos_map_entry **value_list = xmalloc(
-            sizeof *system_row->qos_cos_map_entries * QOS_COS_MAP_ENTRY_COUNT);
+            sizeof *system_row->qos_cos_map_entries *
+            QOS_COS_MAP_ENTRY_COUNT);
     for (i = 0; i < QOS_COS_MAP_ENTRY_COUNT; i++) {
         value_list[i] = cos_map_rows[i];
     }
     ovsrec_system_set_qos_cos_map_entries(system_row, value_list,
             QOS_COS_MAP_ENTRY_COUNT);
     free(value_list);
-
-    qos_destroy_default_cos_map(default_cos_map);
 }
 
 static void set_dscp_map_entry(struct ovsrec_qos_dscp_map_entry *dscp_map_entry,
@@ -502,30 +530,76 @@ void qos_init_dscp_map(struct ovsdb_idl_txn *txn,
 
 void qos_init_queue_profile(struct ovsdb_idl_txn *txn,
                            struct ovsrec_system *system_row) {
+    /* Create the default profile. */
     qos_queue_profile_create_factory_default(txn, QOS_DEFAULT_NAME);
 
-    struct ovsrec_q_profile *profile = qos_get_queue_profile_row(
+    struct ovsrec_q_profile *default_profile = qos_get_queue_profile_row(
             QOS_DEFAULT_NAME);
-    if (profile == NULL) {
+    if (default_profile == NULL) {
         VLOG_ERR("Profile cannot be NULL.");
         return;
     }
 
-    /* Update the system row. */
-    ovsrec_system_set_q_profile(system_row, profile);
+    /* Update the system row to point to the default profile. */
+    ovsrec_system_set_q_profile(system_row, default_profile);
+
+    /* Also, create a profile named factory default that is immutable. */
+    qos_queue_profile_create_factory_default(txn, QOS_FACTORY_DEFAULT_NAME);
+
+    struct ovsrec_q_profile *factory_default_profile =
+            qos_get_queue_profile_row(QOS_FACTORY_DEFAULT_NAME);
+    if (factory_default_profile == NULL) {
+        VLOG_ERR("Profile cannot be NULL.");
+        return;
+    }
+
+    /* Set hw_default for profile row. */
+    bool hw_default = true;
+    ovsrec_q_profile_set_hw_default(factory_default_profile, &hw_default, 1);
+
+    /* Set hw_default for profile entry rows. */
+    int i;
+    for (i = 0; i < factory_default_profile->n_q_profile_entries; i++) {
+        struct ovsrec_q_profile_entry *entry =
+                factory_default_profile->value_q_profile_entries[i];
+        ovsrec_q_profile_entry_set_hw_default(entry, &hw_default, 1);
+    }
 }
 
 void qos_init_schedule_profile(struct ovsdb_idl_txn *txn,
                            struct ovsrec_system *system_row) {
+    /* Create the default profile. */
     qos_schedule_profile_create_factory_default(txn, QOS_DEFAULT_NAME);
 
-    struct ovsrec_qos *profile = qos_get_schedule_profile_row(
+    struct ovsrec_qos *default_profile = qos_get_schedule_profile_row(
             QOS_DEFAULT_NAME);
-    if (profile == NULL) {
+    if (default_profile == NULL) {
         VLOG_ERR("Profile cannot be NULL.");
         return;
     }
 
-    /* Update the system row. */
-    ovsrec_system_set_qos(system_row, profile);
+    /* Update the system row to point to the default profile. */
+    ovsrec_system_set_qos(system_row, default_profile);
+
+    /* Also, create a profile named factory default that is immutable. */
+    qos_schedule_profile_create_factory_default(txn, QOS_FACTORY_DEFAULT_NAME);
+
+    struct ovsrec_qos *factory_default_profile =
+            qos_get_schedule_profile_row(QOS_FACTORY_DEFAULT_NAME);
+    if (factory_default_profile == NULL) {
+        VLOG_ERR("Profile cannot be NULL.");
+        return;
+    }
+
+    /* Set hw_default for profile row. */
+    bool hw_default = true;
+    ovsrec_qos_set_hw_default(factory_default_profile, &hw_default, 1);
+
+    /* Set hw_default for profile entry rows. */
+    int i;
+    for (i = 0; i < factory_default_profile->n_queues; i++) {
+        struct ovsrec_queue *entry =
+                factory_default_profile->value_queues[i];
+        ovsrec_queue_set_hw_default(entry, &hw_default, 1);
+    }
 }

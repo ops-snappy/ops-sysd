@@ -64,7 +64,6 @@ set (SOURCES ${SRC_DIR}/sysd.c
              ${SRC_DIR}/sysd_fru.c
              ${SRC_DIR}/sysd_ovsdb_if.c
              ${SRC_DIR}/qos_init.c
-             ${SRC_DIR}/sysd_qos_utils.c
              ${SRC_DIR}/sysd_util.c)
 if (PLATFORM_SIMULATION)
         LIST(APPEND SOURCES ${SRC_DIR}/sysd_stub_x86_fru.c)
