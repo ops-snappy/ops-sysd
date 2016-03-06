@@ -1,4 +1,4 @@
-# (c) Copyright 2015 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2015-2016 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -84,6 +84,9 @@ SET(CMAKE_INSTALL_PREFIX "/" CACHE STRING "Prefix prepended to install directori
 # Rules to install ops-sysd binary in rootfs
 install(TARGETS ${SYSD}
         RUNTIME DESTINATION usr/bin)
+
+# Build ops-sysd cli shared libraries.
+add_subdirectory(src/cli)
 
 # OPS_TODO: The image.manifest file should not be located in sysd.
 # This is just temporary parking space until we find it better home.
