@@ -15,13 +15,16 @@
  *
  ***************************************************************************/
 
+#include <config.h>
+
+#include "qos_init.h"
+
 #include <config-yaml.h>
 #include <ops-utils.h>
 #include <stdlib.h>
 #include <sys/types.h>
 
 #include "openvswitch/vlog.h"
-#include "qos_init.h"
 #include "sysd_qos_utils.h"
 #include "smap.h"
 #include "util.h"
@@ -33,9 +36,14 @@ struct ovsdb_idl *idl;
 
 /**************************************************************/
 
-static bool has_local_priority(
+/**
+ * Returns true if the givien queue_row contains the local_priority.
+ */
+static bool
+has_local_priority(
         struct ovsrec_q_profile_entry *queue_row,
-        int64_t local_priority) {
+        int64_t local_priority)
+{
     int i;
     for (i = 0; i < queue_row->n_local_priorities; i++) {
         if (queue_row->local_priorities[i] == local_priority) {
@@ -46,8 +54,13 @@ static bool has_local_priority(
     return false;
 }
 
-static struct ovsrec_q_profile *qos_get_queue_profile_row(
-        const char *profile_name) {
+/**
+ * Returns the queue_profile_row for the given profile_name.
+ */
+static struct ovsrec_q_profile *
+qos_get_queue_profile_row(
+        const char *profile_name)
+{
     const struct ovsrec_q_profile *profile_row;
     OVSREC_Q_PROFILE_FOR_EACH(profile_row, idl) {
         if (strcmp(profile_row->name, profile_name) == 0) {
@@ -58,8 +71,14 @@ static struct ovsrec_q_profile *qos_get_queue_profile_row(
     return NULL;
 }
 
-static struct ovsrec_q_profile_entry *qos_get_queue_profile_entry_row(
-        struct ovsrec_q_profile *profile_row, int64_t queue_num) {
+/**
+ * Returns the queue_profile_entry_row for the given profile_row and
+ * queue_num.
+ */
+static struct ovsrec_q_profile_entry *
+qos_get_queue_profile_entry_row(
+        struct ovsrec_q_profile *profile_row, int64_t queue_num)
+{
     int i;
     for (i = 0; i < profile_row->n_q_profile_entries; i++) {
         if (profile_row->key_q_profile_entries[i] == queue_num) {
@@ -70,9 +89,15 @@ static struct ovsrec_q_profile_entry *qos_get_queue_profile_entry_row(
     return NULL;
 }
 
-static struct ovsrec_q_profile_entry *insert_queue_profile_queue_row(
+/**
+ * Inserts into the database and returns a new queue_profile_entry_row
+ * for the given profile_row, queue_num, and txn.
+ */
+static struct ovsrec_q_profile_entry *
+insert_queue_profile_queue_row(
         struct ovsrec_q_profile *profile_row, int64_t queue_num,
-        struct ovsdb_idl_txn *txn) {
+        struct ovsdb_idl_txn *txn)
+{
     /* Create the queue row. */
     struct ovsrec_q_profile_entry *queue_row =
             ovsrec_q_profile_entry_insert(txn);
@@ -100,9 +125,15 @@ static struct ovsrec_q_profile_entry *insert_queue_profile_queue_row(
     return queue_row;
 }
 
-static bool qos_queue_profile_command(
+/**
+ * Executes the qos_queue_profile_command for the txn and profile_name.
+ * Returns true if an error occurred.
+ */
+static bool
+qos_queue_profile_command(
         struct ovsdb_idl_txn *txn,
-        const char *profile_name) {
+        const char *profile_name)
+{
     /* Retrieve the row. */
     struct ovsrec_q_profile *profile_row =
             qos_get_queue_profile_row(profile_name);
@@ -115,8 +146,13 @@ static bool qos_queue_profile_command(
     return false;
 }
 
-static void add_local_priority(struct ovsrec_q_profile_entry *queue_row,
-        int64_t local_priority) {
+/**
+ * Adds the given local_priority to the queue_row.
+ */
+static void
+add_local_priority(struct ovsrec_q_profile_entry *queue_row,
+        int64_t local_priority)
+{
     if (has_local_priority(queue_row, local_priority)) {
         return;
     }
@@ -135,9 +171,15 @@ static void add_local_priority(struct ovsrec_q_profile_entry *queue_row,
     free(value_list);
 }
 
-static bool qos_queue_profile_map_command(
+/**
+ * Executes the queue_profile_map_command for the given txn, profile_name,
+ * queue_num, and local_priority. Returns true if an error occurred.
+ */
+static bool
+qos_queue_profile_map_command(
         struct ovsdb_idl_txn *txn, const char *profile_name,
-        int64_t queue_num, int64_t local_priority) {
+        int64_t queue_num, int64_t local_priority)
+{
     /* Retrieve the profile row. */
     struct ovsrec_q_profile *profile_row =
             qos_get_queue_profile_row(profile_name);
@@ -153,7 +195,8 @@ static bool qos_queue_profile_map_command(
 
     /* If no existing row, then insert a new queue row. */
     if (queue_row == NULL) {
-        queue_row = insert_queue_profile_queue_row(profile_row, queue_num, txn);
+        queue_row = insert_queue_profile_queue_row(
+                profile_row, queue_num, txn);
     }
 
     /* Update the queue row. */
@@ -162,9 +205,15 @@ static bool qos_queue_profile_map_command(
     return false;
 }
 
-static void qos_queue_profile_create_factory_default(
+/**
+ * Creates the factory default queue profile for the given txn and
+ * default_name.
+ */
+static void
+qos_queue_profile_create_factory_default(
         struct ovsdb_idl_txn *txn,
-        const char *default_name) {
+        const char *default_name)
+{
     qos_queue_profile_command(txn, default_name);
 
     qos_queue_profile_map_command(txn, default_name, 7, 7);
@@ -179,8 +228,13 @@ static void qos_queue_profile_create_factory_default(
 
 /**************************************************************/
 
-static struct ovsrec_qos *qos_get_schedule_profile_row(
-        const char *profile_name) {
+/**
+ * Returns the schedule_profile_row for the given profile_name.
+ */
+static struct ovsrec_qos *
+qos_get_schedule_profile_row(
+        const char *profile_name)
+{
     const struct ovsrec_qos *profile_row;
     OVSREC_QOS_FOR_EACH(profile_row, idl) {
         if (strcmp(profile_row->name, profile_name) == 0) {
@@ -191,8 +245,14 @@ static struct ovsrec_qos *qos_get_schedule_profile_row(
     return NULL;
 }
 
-static struct ovsrec_queue *qos_get_schedule_profile_entry_row(
-        struct ovsrec_qos *profile_row, int64_t queue_num) {
+/**
+ * Returns the schedule_profile_entry_row for the given profile_row and
+ * queue_num.
+ */
+static struct ovsrec_queue *
+qos_get_schedule_profile_entry_row(
+        struct ovsrec_qos *profile_row, int64_t queue_num)
+{
     int i;
     for (i = 0; i < profile_row->n_queues; i++) {
         if (profile_row->key_queues[i] == queue_num) {
@@ -203,9 +263,15 @@ static struct ovsrec_queue *qos_get_schedule_profile_entry_row(
     return NULL;
 }
 
-static struct ovsrec_queue *insert_schedule_profile_queue_row(
+/**
+ * Inserts into the database and returns the schedule_profile_row for the
+ * given profile_row, queue_num, and txn.
+ */
+static struct ovsrec_queue *
+insert_schedule_profile_queue_row(
         struct ovsrec_qos *profile_row, int64_t queue_num,
-        struct ovsdb_idl_txn *txn) {
+        struct ovsdb_idl_txn *txn)
+{
     /* Create the queue row. */
     struct ovsrec_queue *queue_row =
             ovsrec_queue_insert(txn);
@@ -233,9 +299,15 @@ static struct ovsrec_queue *insert_schedule_profile_queue_row(
     return queue_row;
 }
 
-static bool qos_schedule_profile_command(
+/**
+ * Executes the schedule_profile_command for the given txn, and profile_name.
+ * Returns true if an error occurred.
+ */
+static bool
+qos_schedule_profile_command(
         struct ovsdb_idl_txn *txn,
-        const char *profile_name) {
+        const char *profile_name)
+{
     /* Retrieve the row. */
     struct ovsrec_qos *profile_row =
             qos_get_schedule_profile_row(profile_name);
@@ -248,9 +320,15 @@ static bool qos_schedule_profile_command(
     return false;
 }
 
-static bool qos_schedule_profile_strict_command(
+/**
+ * Executes the schedule_profile_strict_command for the given txn,
+ * profile_name, and queue_num. Returns true if an error occurred.
+ */
+static bool
+qos_schedule_profile_strict_command(
         struct ovsdb_idl_txn *txn,
-        const char *profile_name, int64_t queue_num) {
+        const char *profile_name, int64_t queue_num)
+{
     /* Retrieve the profile row. */
     struct ovsrec_qos *profile_row =
             qos_get_schedule_profile_row(profile_name);
@@ -265,7 +343,8 @@ static bool qos_schedule_profile_strict_command(
 
     /* If no existing row, then insert a new queue row. */
     if (queue_row == NULL) {
-        queue_row = insert_schedule_profile_queue_row(profile_row, queue_num, txn);
+        queue_row = insert_schedule_profile_queue_row(
+                profile_row, queue_num, txn);
     }
 
     /* Update the queue row. */
@@ -274,10 +353,15 @@ static bool qos_schedule_profile_strict_command(
 
     return false;
 }
-
-static bool qos_schedule_profile_wrr_command(
+/**
+ * Executes the schedule_profile_wrr_command for the given txn, profile_name,
+ * queue_num, and weight. Returns true if an error occurred.
+ */
+static bool
+qos_schedule_profile_wrr_command(
         struct ovsdb_idl_txn *txn, const char *profile_name,
-        int64_t queue_num, int64_t weight) {
+        int64_t queue_num, int64_t weight)
+{
     /* Retrieve the profile row. */
     struct ovsrec_qos *profile_row =
             qos_get_schedule_profile_row(profile_name);
@@ -293,7 +377,8 @@ static bool qos_schedule_profile_wrr_command(
 
     /* If no existing row, then insert a new queue row. */
     if (queue_row == NULL) {
-        queue_row = insert_schedule_profile_queue_row(profile_row, queue_num, txn);
+        queue_row = insert_schedule_profile_queue_row(
+                profile_row, queue_num, txn);
     }
 
     /* Update the queue row. */
@@ -303,9 +388,15 @@ static bool qos_schedule_profile_wrr_command(
     return false;
 }
 
-static void qos_schedule_profile_create_factory_default(
+/**
+ * Creates the factory default schedule profile for the given txn and
+ * default_name.
+ */
+static void
+qos_schedule_profile_create_factory_default(
         struct ovsdb_idl_txn *txn,
-        const char *default_name) {
+        const char *default_name)
+{
     qos_schedule_profile_command(txn, default_name);
 
     /* Delete all queue rows. */
@@ -327,8 +418,13 @@ static void qos_schedule_profile_create_factory_default(
 
 /**************************************************************/
 
-void qos_init_trust(struct ovsdb_idl_txn *txn,
-                           struct ovsrec_system *system_row) {
+/**
+ * Initializes qos trust for the given txn and system_row.
+ */
+void
+qos_init_trust(struct ovsdb_idl_txn *txn,
+                           struct ovsrec_system *system_row)
+{
     struct smap smap;
     smap_clone(&smap, &system_row->qos_config);
     smap_replace(&smap, QOS_TRUST_KEY, QOS_TRUST_DEFAULT);
@@ -336,9 +432,15 @@ void qos_init_trust(struct ovsdb_idl_txn *txn,
     smap_destroy(&smap);
 }
 
-static void set_cos_map_entry(struct ovsrec_qos_cos_map_entry *cos_map_entry,
+/**
+ * Sets the given cos_map_entry, code_point, local_priority, color, and
+ * description for the given cos_map_entry.
+ */
+static void
+set_cos_map_entry(struct ovsrec_qos_cos_map_entry *cos_map_entry,
         int64_t code_point, int64_t local_priority,
-        char *color, char *description) {
+        char *color, char *description)
+{
     /* Initialize the actual config. */
     ovsrec_qos_cos_map_entry_set_code_point(cos_map_entry, code_point);
     ovsrec_qos_cos_map_entry_set_local_priority(cos_map_entry, local_priority);
@@ -361,8 +463,13 @@ static void set_cos_map_entry(struct ovsrec_qos_cos_map_entry *cos_map_entry,
     smap_destroy(&smap);
 }
 
-static void qos_init_default_cos_map(
-        struct ovsrec_qos_cos_map_entry **cos_map) {
+/**
+ * Initializes the given default cos_map.
+ */
+static void
+qos_init_default_cos_map(
+        struct ovsrec_qos_cos_map_entry **cos_map)
+{
     set_cos_map_entry(cos_map[0], 0, 1, "green", "Best_Effort");
     set_cos_map_entry(cos_map[1], 1, 0, "green", "Background");
     set_cos_map_entry(cos_map[2], 2, 2, "green", "Excellent_Effort");
@@ -373,8 +480,14 @@ static void qos_init_default_cos_map(
     set_cos_map_entry(cos_map[7], 7, 7, "green", "Network_Control");
 }
 
-void qos_init_cos_map(struct ovsdb_idl_txn *txn,
-                           struct ovsrec_system *system_row) {
+/**
+ * Creates cos_map rows and initializes them for the given txn and
+ * system_row.
+ */
+void
+qos_init_cos_map(struct ovsdb_idl_txn *txn,
+                           struct ovsrec_system *system_row)
+{
     /* Create the cos-map rows. */
     struct ovsrec_qos_cos_map_entry *cos_map_rows[QOS_COS_MAP_ENTRY_COUNT];
     int i;
@@ -399,13 +512,22 @@ void qos_init_cos_map(struct ovsdb_idl_txn *txn,
     free(value_list);
 }
 
-static void set_dscp_map_entry(struct ovsrec_qos_dscp_map_entry *dscp_map_entry,
+/**
+ * Sets the given dscp_map_entry, code_point, local_priority, color, and
+ * description for the given dscp_map_entry.
+ */
+static void
+set_dscp_map_entry(
+        struct ovsrec_qos_dscp_map_entry *dscp_map_entry,
         int64_t code_point, int64_t local_priority,
-        int64_t priority_code_point, char *color, char *description) {
+        int64_t priority_code_point, char *color, char *description)
+{
     /* Initialize the actual config. */
     ovsrec_qos_dscp_map_entry_set_code_point(dscp_map_entry, code_point);
-    ovsrec_qos_dscp_map_entry_set_local_priority(dscp_map_entry, local_priority);
-    ovsrec_qos_dscp_map_entry_set_priority_code_point(dscp_map_entry, &priority_code_point, 1);
+    ovsrec_qos_dscp_map_entry_set_local_priority(
+            dscp_map_entry, local_priority);
+    ovsrec_qos_dscp_map_entry_set_priority_code_point(
+            dscp_map_entry, &priority_code_point, 1);
     ovsrec_qos_dscp_map_entry_set_color(dscp_map_entry, color);
     ovsrec_qos_dscp_map_entry_set_description(dscp_map_entry, description);
 
@@ -420,16 +542,23 @@ static void set_dscp_map_entry(struct ovsrec_qos_dscp_map_entry *dscp_map_entry,
     struct smap smap;
     smap_clone(&smap, &dscp_map_entry->hw_defaults);
     smap_replace(&smap, QOS_DEFAULT_CODE_POINT_KEY, code_point_buffer);
-    smap_replace(&smap, QOS_DEFAULT_LOCAL_PRIORITY_KEY, local_priority_buffer);
-    smap_replace(&smap, QOS_DEFAULT_PRIORITY_CODE_POINT_KEY, priority_code_point_buffer);
+    smap_replace(&smap, QOS_DEFAULT_LOCAL_PRIORITY_KEY,
+            local_priority_buffer);
+    smap_replace(&smap, QOS_DEFAULT_PRIORITY_CODE_POINT_KEY,
+            priority_code_point_buffer);
     smap_replace(&smap, QOS_DEFAULT_COLOR_KEY, color);
     smap_replace(&smap, QOS_DEFAULT_DESCRIPTION_KEY, description);
     ovsrec_qos_dscp_map_entry_set_hw_defaults(dscp_map_entry, &smap);
     smap_destroy(&smap);
 }
 
-static void qos_init_default_dscp_map(
-        struct ovsrec_qos_dscp_map_entry **dscp_map) {
+/**
+ * Initializes the given default dscp_map.
+ */
+static void
+qos_init_default_dscp_map(
+        struct ovsrec_qos_dscp_map_entry **dscp_map)
+{
     set_dscp_map_entry(dscp_map[0], 0, 0, 1, "green", "CS0");
     set_dscp_map_entry(dscp_map[1], 1, 0, 1, "green", "");
     set_dscp_map_entry(dscp_map[2], 2, 0, 1, "green", "");
@@ -502,8 +631,14 @@ static void qos_init_default_dscp_map(
     set_dscp_map_entry(dscp_map[63], 63, 7, 7, "green", "");
 }
 
-void qos_init_dscp_map(struct ovsdb_idl_txn *txn,
-                           struct ovsrec_system *system_row) {
+/**
+ * Creates and initializes the default dscp map for the given txn and
+ * system_row.
+ */
+void
+qos_init_dscp_map(struct ovsdb_idl_txn *txn,
+                           struct ovsrec_system *system_row)
+{
     /* Create the dscp-map rows. */
     struct ovsrec_qos_dscp_map_entry *dscp_map_rows[QOS_DSCP_MAP_ENTRY_COUNT];
     int i;
@@ -528,8 +663,13 @@ void qos_init_dscp_map(struct ovsdb_idl_txn *txn,
     free(value_list);
 }
 
-void qos_init_queue_profile(struct ovsdb_idl_txn *txn,
-                           struct ovsrec_system *system_row) {
+/**
+ * Initializes the queue_profile for the given txn and system_row.
+ */
+void
+qos_init_queue_profile(struct ovsdb_idl_txn *txn,
+                           struct ovsrec_system *system_row)
+{
     /* Create the default profile. */
     qos_queue_profile_create_factory_default(txn, QOS_DEFAULT_NAME);
 
@@ -566,8 +706,13 @@ void qos_init_queue_profile(struct ovsdb_idl_txn *txn,
     }
 }
 
-void qos_init_schedule_profile(struct ovsdb_idl_txn *txn,
-                           struct ovsrec_system *system_row) {
+/**
+ * Initializes the schedule_profile for the given txn and system_row.
+ */
+void
+qos_init_schedule_profile(struct ovsdb_idl_txn *txn,
+                           struct ovsrec_system *system_row)
+{
     /* Create the default profile. */
     qos_schedule_profile_create_factory_default(txn, QOS_DEFAULT_NAME);
 
