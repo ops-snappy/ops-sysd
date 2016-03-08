@@ -629,7 +629,7 @@ qos_init_queue_profile(struct ovsdb_idl_txn *txn,
                                              qos_info->factory_default_name);
 
     struct ovsrec_q_profile *factory_default_profile =
-                    qos_get_queue_profile_row(qos_info->default_name);
+                    qos_get_queue_profile_row(qos_info->factory_default_name);
     if (factory_default_profile == NULL) {
         VLOG_ERR("Profile cannot be NULL.");
         return;
