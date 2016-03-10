@@ -4,6 +4,7 @@
 - [Image manifest read test](#image-manifest-read-test)
 - [Hardware description file read test](#hardware-description-files-read-test)
 - [/etc/os-release file read test](#etcos-release-file-read-test)
+- [Package_Info table initialization test](#packageinfo-table-initialization-test)
 
 
 ## Image manifest read test
@@ -109,3 +110,30 @@ Virtual Mininet Test Setup.
 #### Test fail criteria
 Verify that the switch version in the OVSDB matches the appropriate
 /etc/os-release NAME, VERSION\_ID, and BUILD\_ID.
+
+## Package_Info table initialization test
+
+### Objective
+Verify that the Package_Info table is populated during the sysd initialization phase.
+
+### Requirements
+Virtual Mininet Test Setup.
+
+### Setup
+#### Topology diagram
+```
+  [s1]
+```
+
+### Description
+1. Read the contents of the Package_Info table from OVSDB.
+2. Verify if `ops-sysd` can be found in the Package_Info table.
+   (An entry for `ops-sysd` is present in the Package_Info table
+   if it was correctly populated during sysd initialization.)
+
+### Test result criteria
+#### Test pass criteria
+The `ops-sysd` entry was found in the Package_Info table.
+
+#### Test fail criteria
+The `ops-sysd` entry was not found in the Package_Info table.

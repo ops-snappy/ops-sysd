@@ -258,6 +258,17 @@ sysd_ovsdb_conn_init(char *remote)
 
     /* Management Interface Column*/
     ovsdb_idl_add_column(idl, &ovsrec_system_col_mgmt_intf);
+
+    /* Package_Info Table */
+    ovsdb_idl_add_table(idl, &ovsrec_table_package_info);
+    ovsdb_idl_add_column(idl, &ovsrec_package_info_col_name);
+    ovsdb_idl_omit_alert(idl, &ovsrec_package_info_col_name);
+    ovsdb_idl_add_column(idl, &ovsrec_package_info_col_src_type);
+    ovsdb_idl_omit_alert(idl, &ovsrec_package_info_col_src_type);
+    ovsdb_idl_add_column(idl, &ovsrec_package_info_col_src_url);
+    ovsdb_idl_omit_alert(idl, &ovsrec_package_info_col_src_url);
+    ovsdb_idl_add_column(idl, &ovsrec_package_info_col_version);
+    ovsdb_idl_omit_alert(idl, &ovsrec_package_info_col_version);
     return;
 
 } /* sysd_ovsdb_conn_init */

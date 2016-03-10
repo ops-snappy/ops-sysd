@@ -41,6 +41,7 @@ configure_file (${PROJECT_SOURCE_DIR}/${INCL_DIR}/sysd_cfg_yaml.h.in
 
 set (MANIFEST_FILE_PATH /etc/openswitch/image.manifest)
 set (OS_RELEASE_FILE_PATH /etc/os-release)
+set (VER_DETAIL_FILE_PATH /var/lib/version_detail)
 
 # Update the image.manifest file location in sysd_util
 configure_file (${PROJECT_SOURCE_DIR}/${INCL_DIR}/sysd_util.h.in
