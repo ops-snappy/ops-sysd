@@ -221,12 +221,15 @@ qos_queue_profile_create_factory_default(struct ovsdb_idl_txn *txn,
     count = sysd_cfg_yaml_get_queue_profile_entry_count();
     VLOG_DBG("THERE ARE %d QUEUE_PROFILE ENTRIES", count);
     for (ii = 0; ii < count; ii++) {
+        /* pointer could be NULL only if YAML init has failed. */
         yaml_queue_profile_entry = sysd_cfg_yaml_get_queue_profile_entry(ii);
-        VLOG_INFO(".. queue %d pri %d", yaml_queue_profile_entry->queue,
-                  yaml_queue_profile_entry->local_priority);
-        qos_queue_profile_map_command(txn, default_name,
-                                      yaml_queue_profile_entry->queue,
-                                      yaml_queue_profile_entry->local_priority);
+        if (yaml_queue_profile_entry) {
+            VLOG_INFO(".. queue %d pri %d", yaml_queue_profile_entry->queue,
+                      yaml_queue_profile_entry->local_priority);
+            qos_queue_profile_map_command(txn, default_name,
+                                          yaml_queue_profile_entry->queue,
+                                          yaml_queue_profile_entry->local_priority);
+        }
     }
 }
 
@@ -387,10 +390,13 @@ qos_schedule_profile_create_factory_default(struct ovsdb_idl_txn *txn,
     for (int ii = 0; ii < count; ii++) {
         yaml_schedule_profile_entry =
             sysd_cfg_yaml_get_schedule_profile_entry(ii);
-        qos_schedule_profile_row_command(txn, default_name,
-                                         yaml_schedule_profile_entry->queue,
-                                         yaml_schedule_profile_entry->algorithm,
-                                         yaml_schedule_profile_entry->weight);
+        /* pointer could be NULL only if YAML init has failed. */
+        if (yaml_schedule_profile_entry) {
+            qos_schedule_profile_row_command(txn, default_name,
+                                             yaml_schedule_profile_entry->queue,
+                                             yaml_schedule_profile_entry->algorithm,
+                                             yaml_schedule_profile_entry->weight);
+        }
     }
 }
 
@@ -407,10 +413,15 @@ qos_init_trust(struct ovsdb_idl_txn *txn,
     struct smap smap;
 
     qos_info = sysd_cfg_yaml_get_qos_info();
-    smap_clone(&smap, &system_row->qos_config);
-    smap_replace(&smap, QOS_TRUST_KEY, qos_info->trust);
-    ovsrec_system_set_qos_config(system_row, &smap);
-    smap_destroy(&smap);
+
+    /* trust pointer could be NULL only if YAML init has failed. */
+    if (qos_info->trust) {
+        smap_clone(&smap, &system_row->qos_config);
+        smap_replace(&smap, QOS_TRUST_KEY, qos_info->trust);
+        ovsrec_system_set_qos_config(system_row, &smap);
+        smap_destroy(&smap);
+    }
+    return;
 }
 
 /**
