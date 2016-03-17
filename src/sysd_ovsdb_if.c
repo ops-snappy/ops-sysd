@@ -122,7 +122,9 @@ sysd_initial_interface_add(struct ovsdb_idl_txn *txn,
         if ((strcmp(*cap_p, INTERFACE_HW_INTF_INFO_MAP_SPLIT_4) != 0)  &&
             (strcmp(*cap_p, INTERFACE_HW_INTF_INFO_MAP_ENET1G)  != 0)  &&
             (strcmp(*cap_p, INTERFACE_HW_INTF_INFO_MAP_ENET10G) != 0)  &&
-            (strcmp(*cap_p, INTERFACE_HW_INTF_INFO_MAP_ENET40G) != 0)) {
+            (strcmp(*cap_p, INTERFACE_HW_INTF_INFO_MAP_ENET25G) != 0)  &&
+            (strcmp(*cap_p, INTERFACE_HW_INTF_INFO_MAP_ENET40G) != 0)  &&
+            (strcmp(*cap_p, INTERFACE_HW_INTF_INFO_MAP_ENET100G) != 0)) {
 
             VLOG_INFO("subsystem[%s]:interface[%s] - adding unknown "
                       "interface capability[%s]",
