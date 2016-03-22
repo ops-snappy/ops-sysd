@@ -33,6 +33,11 @@
 
 VLOG_DEFINE_THIS_MODULE(qos_init);
 
+/**
+ * If defined, then the dscp map cos remark capability will be disabled.
+ */
+#define QOS_CAPABILITY_DSCP_MAP_COS_REMARK_DISABLED
+
 struct ovsdb_idl *idl;
 
 /**************************************************************/
@@ -526,8 +531,12 @@ set_dscp_map_entry(struct ovsrec_qos_dscp_map_entry *dscp_map_entry,
     ovsrec_qos_dscp_map_entry_set_code_point(dscp_map_entry, code_point);
     ovsrec_qos_dscp_map_entry_set_local_priority(dscp_map_entry,
                                                  local_priority);
+#ifdef QOS_CAPABILITY_DSCP_MAP_COS_REMARK_DISABLED
+    /* Disabled for dill. */
+#else
     ovsrec_qos_dscp_map_entry_set_priority_code_point(dscp_map_entry,
                                                       &priority_code_point, 1);
+#endif
     ovsrec_qos_dscp_map_entry_set_color(dscp_map_entry, color);
     ovsrec_qos_dscp_map_entry_set_description(dscp_map_entry, description);
 
@@ -547,8 +556,12 @@ set_dscp_map_entry(struct ovsrec_qos_dscp_map_entry *dscp_map_entry,
     smap_replace(&smap, QOS_DEFAULT_CODE_POINT_KEY, code_point_buffer);
     smap_replace(&smap, QOS_DEFAULT_LOCAL_PRIORITY_KEY,
                  local_priority_buffer);
+#ifdef QOS_CAPABILITY_DSCP_MAP_COS_REMARK_DISABLED
+    /* Disabled for dill. */
+#else
     smap_replace(&smap, QOS_DEFAULT_PRIORITY_CODE_POINT_KEY,
                  priority_code_point_buffer);
+#endif
     smap_replace(&smap, QOS_DEFAULT_COLOR_KEY, color);
     smap_replace(&smap, QOS_DEFAULT_DESCRIPTION_KEY, description);
     ovsrec_qos_dscp_map_entry_set_hw_defaults(dscp_map_entry, &smap);
