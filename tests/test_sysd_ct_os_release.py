@@ -36,6 +36,10 @@ OVSDB_TOOL = "/usr/bin/ovsdb-tool "
 DEFAULT_OS_RELEASE_FILE = "os-release.default"
 OS_RELEASE_FILES_DIR = "files/os_releases"
 
+CHECK_MODE_EXACT = 0
+CHECK_MODE_PARTIAL = 1
+CHECK_MODE_NONE = 2
+
 
 class OSReleaseTest(OpsVsiTest):
     """Mininet based OpenSwitch component test class.
@@ -79,7 +83,7 @@ class OSReleaseTest(OpsVsiTest):
 
         assert result == expected, "OS name mismatch."
 
-    def check_switch_version(self, file_name):
+    def check_switch_version(self, file_name, mode=CHECK_MODE_EXACT):
         """
         Testing ops-sysd correctly stores switch_version column.
 
@@ -90,12 +94,18 @@ class OSReleaseTest(OpsVsiTest):
         # Restart the ovsdb-server and sysd
         self.__start()
 
-        version_id = self.__read_os_release_file(file_name, 'VERSION_ID')
-        build_id = self.__read_os_release_file(file_name, 'BUILD_ID')
-        expected = "{0} (Build: {1})".format(version_id, build_id)
+        if mode != CHECK_MODE_NONE:
+            version_id = self.__read_os_release_file(file_name, 'VERSION_ID')
+            build_id = self.__read_os_release_file(file_name, 'BUILD_ID')
+            expected = "{0} (Build: {1})".format(version_id, build_id)
         result = self.__get_switch_version()
 
-        assert result == expected, "Switch version mismatch."
+        if mode == CHECK_MODE_EXACT:
+            assert result == expected, "Switch version mismatch."
+        elif mode == CHECK_MODE_PARTIAL:
+            assert result in expected, "Switch version mismatch."
+        else:
+            assert result == ['set', []], "Switch version mismatch."
 
     def __get_software_info(self, key=None):
         out = self.s1.cmd(OVS_VSCTL + "--format json list system")
@@ -252,3 +262,24 @@ class TestRunner:
 
     def test_long_version(self):
         self.test.check_switch_version("os-release.long-name-and-build-id")
+
+    def test_os_name_for_no_build_id(self):
+        self.test.check_os_name("os-release.no-build-id")
+
+    def test_version_for_no_build_id(self):
+        self.test.check_switch_version("os-release.no-build-id",
+                                       mode=CHECK_MODE_NONE)
+
+    def test_os_name_for_79_char_build_id_line(self):
+        self.test.check_os_name("os-release.79-char-build-id-line")
+
+    def test_version_for_79_char_build_id_line(self):
+        self.test.check_switch_version("os-release.79-char-build-id-line",
+                                       mode=CHECK_MODE_PARTIAL)
+
+    def test_os_name_for_80_char_build_id_line(self):
+        self.test.check_os_name("os-release.80-char-build-id-line")
+
+    def test_version_for_80_char_build_id_line(self):
+        self.test.check_switch_version("os-release.80-char-build-id-line",
+                                       mode=CHECK_MODE_PARTIAL)
