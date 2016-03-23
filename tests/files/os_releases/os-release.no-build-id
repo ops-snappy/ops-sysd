@@ -1,0 +1,6 @@
+ID=openswitch
+NAME=NoBuildId
+VERSION=1.0.0 (dill)
+VERSION_ID=1.0.0
+PRETTY_NAME=OpenSwitch 1.0.0 (dill)
+HOME_URL=http://www.openswitch.net

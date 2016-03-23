@@ -24,6 +24,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -497,12 +498,14 @@ sysd_update_sw_info(const struct ovsrec_system *cfg)
 #define NSTR  80 /* Max length of each line of /etc/os-release. */
     struct smap smap = SMAP_INITIALIZER(&smap);
     FILE   *os_ver_fp = NULL;
-    char   *file_line = NULL;
-    char   file_var_name[NSTR];
-    char   file_var_value[NSTR];
+    char   *line = NULL;
+    char   *value;
+    char   *name;
     char   version_id[NSTR];
     char   build_id[NSTR];
+    char   build_str[NSTR];
     size_t line_len = 0;
+    int i;
 
     /* Open os-release file with the os version information */
     os_ver_fp = fopen(OS_RELEASE_FILE_PATH, "r");
@@ -512,43 +515,50 @@ sysd_update_sw_info(const struct ovsrec_system *cfg)
         return;
     }
 
+    /* Initialize the version_id and build_id to avoid the ops-sysd crash */
+    version_id[0] = build_id[0] = '\0';
+
     /* Scanning file for variables */
-    file_var_name[0] = file_var_value[0] = '\0';
-    while (getline(&file_line, &line_len, os_ver_fp) != -1) {
-        if (file_line == NULL || strlen(file_line) > NSTR) {
-            /* Limit the whole line length to NSTR length.  */
+    while (getline(&line, &line_len, os_ver_fp) != -1) {
+        if (line == NULL || (value = strchr(line, '=')) == NULL) {
+            /* Skip the line. */
             continue;
         }
-        sscanf(file_line, "%[^=]=%s", file_var_name, file_var_value);
+        name = line;
+        value[0] = '\0'; /* Terminate the name string. */
+        ++value;
+        /* Terminate the value string. */
+        for (i = strlen(value) - 1; i >= 0; --i) {
+            if (!isspace(value[i])) {
+                break;
+            }
+        }
+        value[++i] = '\0';
 
         /* Release name value.  */
-        if (strcmp(file_var_name, OS_RELEASE_NAME) == 0
-            && file_var_value[0] != '\0') {
-            smap_add(&smap, SYSTEM_SOFTWARE_INFO_OS_NAME, file_var_value);
+        if (strcmp(name, OS_RELEASE_NAME) == 0 && value[0] != '\0') {
+            smap_add(&smap, SYSTEM_SOFTWARE_INFO_OS_NAME, value);
 
         /* Version ID value*/
-        } else if (strcmp(file_var_name, OS_RELEASE_VERSION_NAME) == 0) {
-            strncpy(version_id, file_var_value, NSTR - 1);
+        } else if (strcmp(name, OS_RELEASE_VERSION_NAME) == 0) {
+            strncpy(version_id, value, NSTR - 1);
             /* in case file_var_value is longer than NSTR - 1 */
             version_id[NSTR - 1] = '\0';
 
         /* Build ID value*/
-        } else if (strcmp(file_var_name, OS_RELEASE_BUILD_NAME) == 0) {
-            strncpy(build_id, file_var_value, NSTR - 1);
+        } else if (strcmp(name, OS_RELEASE_BUILD_NAME) == 0) {
+            strncpy(build_id, value, NSTR - 1);
             /* in case file_var_value is longer than NSTR - 1 */
             build_id[NSTR - 1] = '\0';
         }
-
-        /* Avoid the value carry over. */
-        file_var_name[0] = file_var_value[0] = '\0';
     }
     fclose(os_ver_fp);
-    if (file_line != NULL) {
+    if (line != NULL) {
         /*
          * As getline(3) explains, caller of the getline() needs to
          * free the dynamically allocated memory.
          */
-        free(file_line);
+        free(line);
     }
 
     /* Update the software info column. */
@@ -560,10 +570,8 @@ sysd_update_sw_info(const struct ovsrec_system *cfg)
     /* Check if version id and build id was found*/
     if (build_id[0] != '\0' && version_id[0] != '\0') {
         /* Building the version string */
-        snprintf(file_var_value, NSTR, "%s (Build: %s)",
-                 version_id, build_id);
-
-        ovsrec_system_set_switch_version(cfg, file_var_value);
+        snprintf(build_str, NSTR, "%s (Build: %s)", version_id, build_id);
+        ovsrec_system_set_switch_version(cfg, build_str);
     } else {
         VLOG_ERR("%s or %s was not found on %s", OS_RELEASE_VERSION_NAME,
                  OS_RELEASE_BUILD_NAME, OS_RELEASE_FILE_PATH);
