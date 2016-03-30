@@ -33,6 +33,7 @@
 #include "json.h"
 #include "sysd_util.h"
 
+#include <ops-utils.h>
 #include <config-yaml.h>
 #include "sysd_cfg_yaml.h"
 #include "sysd.h"
@@ -145,38 +146,41 @@ get_manuf_and_prodname(char *cmd_path, char **manufacturer, char **product_name)
 static int
 create_link_to_desc_files(char *manufacturer, char *product_name)
 {
-    char        hw_desc_dir[1024];
+    char        path[1024];
     int         rc = 0;
     struct stat sbuf;
     extern char *g_hw_desc_dir;
+    extern char *g_hw_desc_link;
 
-    snprintf(hw_desc_dir, sizeof(hw_desc_dir), "%s/%s/%s",
-             HWDESC_FILES_PATH, manufacturer, product_name);
+    snprintf(path, sizeof(path), "%s%s/%s/%s",
+             g_install_rootdir, HWDESC_FILES_PATH, manufacturer, product_name);
 
-    VLOG_INFO("Location to HW descrptor files: %s", hw_desc_dir);
+    VLOG_INFO("Location to HW descrptor files: %s", path);
 
-    g_hw_desc_dir = strdup(hw_desc_dir);
+    g_hw_desc_dir = strdup(path);
 
-    if (stat(hw_desc_dir, &sbuf) != 0) {
-        VLOG_ERR("Unable to find hardware description files at %s", hw_desc_dir);
+    if (stat(g_hw_desc_dir, &sbuf) != 0) {
+        VLOG_ERR("Unable to find hardware description files at %s", g_hw_desc_dir);
         return -1;
     }
 
     /* Remove old link if it exists */
-    remove(HWDESC_FILE_LINK);
+    snprintf(path, sizeof(path), "%s%s", g_data_rootdir, HWDESC_FILE_LINK);
+    g_hw_desc_link = strdup(path);
+    remove(g_hw_desc_link);
 
     /* mkdir for the new link */
-    rc = mkdir(HWDESC_FILE_LINK_PATH, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    snprintf(path, sizeof(path), "%s%s", g_data_rootdir, HWDESC_FILE_LINK_PATH);
+    rc = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     if (rc == -1 && errno != EEXIST) {
-        VLOG_ERR("Failed to create %s, Error %s",
-                 HWDESC_FILE_LINK_PATH, ovs_strerror(errno));
+        VLOG_ERR("Failed to create %s, Error %s", path, ovs_strerror(errno));
         return -1;
     }
 
     /* Create link to these files */
-    if (-1 == symlink(hw_desc_dir, HWDESC_FILE_LINK)) {
+    if (-1 == symlink(g_hw_desc_dir, g_hw_desc_link)) {
         VLOG_ERR("Unable to create  soft link to %s -> %s. Error %s",
-                 HWDESC_FILE_LINK, hw_desc_dir, ovs_strerror(errno));
+                 g_hw_desc_link, g_hw_desc_dir, ovs_strerror(errno));
         return -1;
     }
 
@@ -437,7 +441,10 @@ sysd_set_num_hw_daemons()
 int
 sysd_read_manifest_file(void)
 {
-    manifest_info = json_from_file(IMAGE_MANIFEST_FILE_PATH);
+    char image_manifest_path[1024];
+    snprintf(image_manifest_path, sizeof(image_manifest_path), "%s%s",
+             g_install_rootdir, IMAGE_MANIFEST_FILE_PATH);
+    manifest_info = json_from_file(image_manifest_path);
 
     if (manifest_info == (struct json *) NULL) {
         return -1;
