@@ -82,7 +82,7 @@ sysd_cfg_yaml_init(char *hw_desc_dir)
         return (false);
     }
 
-#ifdef USE_SW_FRU
+#if defined(USE_SW_FRU) || defined(PLATFORM_SIMULATION)
     rc = yaml_parse_fru(cfg_yaml_handle, BASE_SUBSYSTEM);
     if (0 > rc) {
         VLOG_ERR("Failed to parse fru yaml config file");
@@ -126,7 +126,7 @@ sysd_cfg_yaml_get_port_subsys_info(void)
 
 } /* sysd_cfg_yaml_get_port_subsys_info */
 
-#ifdef USE_SW_FRU
+#if defined(USE_SW_FRU) || defined(PLATFORM_SIMULATION)
 int
 sysd_cfg_yaml_get_fru_info(fru_eeprom_t *fru_eeprom)
 {
@@ -172,7 +172,7 @@ sysd_cfg_yaml_get_fru_info(fru_eeprom_t *fru_eeprom)
     return 0;
 
 } /* sysd_cfg_yaml_get_fru_info  */
-#endif /* USE_SW_FRU */
+#endif /* defined(USE_SW_FRU) || defined(PLATFORM_SIMULATION) */
 
 bool
 sysd_cfg_yaml_fru_read(unsigned char *fru_hdr, int hdr_len)

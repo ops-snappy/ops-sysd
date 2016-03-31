@@ -189,7 +189,7 @@ int
 sysd_read_fru_eeprom(fru_eeprom_t *fru_eeprom)
 {
     bool            rc;
-#ifdef USE_SW_FRU
+#if defined(USE_SW_FRU) || defined(PLATFORM_SIMULATION)
     /* Populate stub generic-x86 EEPROM info */
     rc = sysd_cfg_yaml_get_fru_info(fru_eeprom);
     if (0 > rc) {
