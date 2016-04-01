@@ -33,7 +33,6 @@
 #include "json.h"
 #include "sysd_util.h"
 
-#include <ops-utils.h>
 #include <config-yaml.h>
 #include "sysd_cfg_yaml.h"
 #include "sysd.h"
@@ -151,9 +150,15 @@ create_link_to_desc_files(char *manufacturer, char *product_name)
     struct stat sbuf;
     extern char *g_hw_desc_dir;
     extern char *g_hw_desc_link;
+    char        *install_rootdir;
+    char        *data_rootdir;
 
+    if (!(install_rootdir = getenv("OPENSWITCH_INSTALL_PATH")))
+        install_rootdir  = "";
+    if (!(data_rootdir = getenv("OPENSWITCH_DATA_PATH")))
+        data_rootdir  = "";
     snprintf(path, sizeof(path), "%s%s/%s/%s",
-             g_install_rootdir, HWDESC_FILES_PATH, manufacturer, product_name);
+             install_rootdir, HWDESC_FILES_PATH, manufacturer, product_name);
 
     VLOG_INFO("Location to HW descrptor files: %s", path);
 
@@ -165,12 +170,12 @@ create_link_to_desc_files(char *manufacturer, char *product_name)
     }
 
     /* Remove old link if it exists */
-    snprintf(path, sizeof(path), "%s%s", g_data_rootdir, HWDESC_FILE_LINK);
+    snprintf(path, sizeof(path), "%s%s", data_rootdir, HWDESC_FILE_LINK);
     g_hw_desc_link = strdup(path);
     remove(g_hw_desc_link);
 
     /* mkdir for the new link */
-    snprintf(path, sizeof(path), "%s%s", g_data_rootdir, HWDESC_FILE_LINK_PATH);
+    snprintf(path, sizeof(path), "%s%s", data_rootdir, HWDESC_FILE_LINK_PATH);
     rc = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     if (rc == -1 && errno != EEXIST) {
         VLOG_ERR("Failed to create %s, Error %s", path, ovs_strerror(errno));
@@ -442,8 +447,12 @@ int
 sysd_read_manifest_file(void)
 {
     char image_manifest_path[1024];
+    char *install_rootdir;
+
+    if (!(install_rootdir = getenv("OPENSWITCH_INSTALL_PATH")))
+        install_rootdir  = "";
     snprintf(image_manifest_path, sizeof(image_manifest_path), "%s%s",
-             g_install_rootdir, IMAGE_MANIFEST_FILE_PATH);
+             install_rootdir, IMAGE_MANIFEST_FILE_PATH);
     manifest_info = json_from_file(image_manifest_path);
 
     if (manifest_info == (struct json *) NULL) {

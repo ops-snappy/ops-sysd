@@ -65,9 +65,6 @@ int num_hw_daemons = 0;
 /* Structure to store management info read */
 mgmt_intf_info_t *mgmt_intf = NULL;
 
-/* Root directories for well-known files. */
-ROOTDIR_GSTRS
-
 static void
 sysd_unixctl_dump(struct unixctl_conn *conn, int argc OVS_UNUSED,
                           const char *argv[] OVS_UNUSED, void *aux OVS_UNUSED)
@@ -286,7 +283,6 @@ usage(void)
            "      (default: \"unix:%s/db.sock\").\n",
            program_name, program_name, ovs_rundir());
     daemon_usage();
-    rootdir_usage();
     vlog_usage();
     printf("\nOther options:\n"
            "  --unixctl=SOCKET        override default control socket name\n"
@@ -306,14 +302,12 @@ parse_options(int argc, char *argv[], char **unixctl_pathp)
         OPT_ENABLE_DUMMY,
         OPT_DISABLE_SYSTEM,
         DAEMON_OPTION_ENUMS,
-        ROOTDIR_OPTION_ENUMS,
         OPT_DPDK,
     };
     static const struct option long_options[] = {
         {"help",        no_argument, NULL, 'h'},
         {"unixctl",     required_argument, NULL, OPT_UNIXCTL},
         DAEMON_LONG_OPTIONS,
-        ROOTDIR_LONG_OPTIONS,
         VLOG_LONG_OPTIONS,
         {NULL, 0, NULL, 0},
     };
@@ -335,7 +329,6 @@ parse_options(int argc, char *argv[], char **unixctl_pathp)
             *unixctl_pathp = optarg;
             break;
 
-        ROOTDIR_OPTION_HANDLERS
         VLOG_OPTION_HANDLERS
         DAEMON_OPTION_HANDLERS
 
