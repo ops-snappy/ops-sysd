@@ -1,5 +1,6 @@
 /************************************************************************//**
- * (c) Copyright 2015 Hewlett Packard Enterprise Development LP
+ * (c) Copyright 2015-2016 Hewlett Packard Enterprise
+ * Development LP
  *
  *    Licensed under the Apache License, Version 2.0 (the "License"); you may
  *    not use this file except in compliance with the License. You may obtain
@@ -33,6 +34,7 @@
 #include "sysd.h"
 #include "sysd_cfg_yaml.h"
 #include "string.h"
+#include "eventlog.h"
 
 VLOG_DEFINE_THIS_MODULE(cfg_yaml);
 
@@ -90,9 +92,15 @@ sysd_cfg_yaml_init(char *hw_desc_dir)
     }
 #endif
 
+    rc = yaml_parse_qos(cfg_yaml_handle, BASE_SUBSYSTEM);
+    if (0 > rc) {
+        VLOG_ERR("Unable to parse qos yaml config file.");
+    }
+
     rc = yaml_init_devices(cfg_yaml_handle, BASE_SUBSYSTEM);
     if (0 > rc) {
         VLOG_ERR("Failed to intialize devices");
+        log_event("SYS_INITIALIZE_DEVICE_FAILURE", NULL);
         return (false);
     }
     fru_dev = yaml_find_device(cfg_yaml_handle, BASE_SUBSYSTEM, FRU_EEPROM_NAME);
@@ -195,10 +203,66 @@ sysd_cfg_yaml_fru_read(unsigned char *fru_hdr, int hdr_len)
     rc = i2c_execute(cfg_yaml_handle, BASE_SUBSYSTEM, fru_dev, cmds);
     if (0 != rc) {
         VLOG_ERR("Failed to read FRU header.");
+        log_event("SYS_FRU_HEADER_READ_FAILURE", NULL);
         return (false);
     }
 
     return (true);
 
 } /* sysd_cfg_yaml_fru_read */
+
+YamlQosInfo *
+sysd_cfg_yaml_get_qos_info(void)
+{
+    return yaml_get_qos_info(cfg_yaml_handle, BASE_SUBSYSTEM);
+}
+
+int
+sysd_cfg_yaml_get_cos_map_entry_count(void)
+{
+    return yaml_get_cos_map_entry_count(cfg_yaml_handle, BASE_SUBSYSTEM);
+}
+
+const YamlCosMapEntry *
+sysd_cfg_yaml_get_cos_map_entry(unsigned int idx)
+{
+    return yaml_get_cos_map_entry(cfg_yaml_handle, BASE_SUBSYSTEM, idx);
+}
+
+int
+sysd_cfg_yaml_get_dscp_map_entry_count(void)
+{
+    return yaml_get_dscp_map_entry_count(cfg_yaml_handle, BASE_SUBSYSTEM);
+}
+
+const YamlDscpMapEntry *
+sysd_cfg_yaml_get_dscp_map_entry(unsigned int idx)
+{
+    return yaml_get_dscp_map_entry(cfg_yaml_handle, BASE_SUBSYSTEM, idx);
+}
+
+int
+sysd_cfg_yaml_get_schedule_profile_entry_count(void)
+{
+    return yaml_get_schedule_profile_entry_count(cfg_yaml_handle, BASE_SUBSYSTEM);
+}
+
+const YamlScheduleProfileEntry *
+sysd_cfg_yaml_get_schedule_profile_entry(unsigned int idx)
+{
+    return yaml_get_schedule_profile_entry(cfg_yaml_handle, BASE_SUBSYSTEM, idx);
+}
+
+int
+sysd_cfg_yaml_get_queue_profile_entry_count(void)
+{
+    return yaml_get_queue_profile_entry_count(cfg_yaml_handle, BASE_SUBSYSTEM);
+}
+
+const YamlQueueProfileEntry *
+sysd_cfg_yaml_get_queue_profile_entry(unsigned int idx)
+{
+    return yaml_get_queue_profile_entry(cfg_yaml_handle, BASE_SUBSYSTEM, idx);
+}
+
 /** @} end of group sysd */

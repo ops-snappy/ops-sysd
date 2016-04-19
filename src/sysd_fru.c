@@ -37,6 +37,8 @@
 #include "sysd_cfg_yaml.h"
 #include "sysd.h"
 
+#include "eventlog.h"
+
 VLOG_DEFINE_THIS_MODULE(fru);
 
 /** @ingroup sysd
@@ -209,6 +211,7 @@ sysd_read_fru_eeprom(fru_eeprom_t *fru_eeprom)
     rc = sysd_cfg_yaml_fru_read((unsigned char *) &header, sizeof(header));
     if (!rc) {
         VLOG_ERR("Error reading FRU EEPROM Header");
+        log_event("SYS_FRU_EEPROM_HEADER_READ_FAILURE", NULL);
         return -1;
     }
 

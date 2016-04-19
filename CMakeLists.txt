@@ -41,7 +41,7 @@ configure_file (${PROJECT_SOURCE_DIR}/${INCL_DIR}/sysd_cfg_yaml.h.in
 
 set (MANIFEST_FILE_PATH /etc/openswitch/image.manifest)
 set (OS_RELEASE_FILE_PATH /etc/os-release)
-set (VER_DETAIL_FILE_PATH /var/lib/version_detail)
+set (VER_DETAIL_FILE_PATH /var/lib/version_detail.yaml)
 
 # Update the image.manifest file location in sysd_util
 configure_file (${PROJECT_SOURCE_DIR}/${INCL_DIR}/sysd_util.h.in
@@ -60,22 +60,19 @@ include_directories (${PROJECT_BINARY_DIR}/${INCL_DIR}
                      ${OVSCOMMON_INCLUDE_DIRS})
 
 # Source files to build ops-sysd
-if (PLATFORM_SIMULATION)
-        set (SOURCES ${SRC_DIR}/sysd.c ${SRC_DIR}/sysd_cfg_yaml.c
-                     ${SRC_DIR}/sysd_fru.c ${SRC_DIR}/sysd_ovsdb_if.c
-                     ${SRC_DIR}/sysd_util.c)
-else ()
-        set (SOURCES ${SRC_DIR}/sysd.c ${SRC_DIR}/sysd_cfg_yaml.c
-                     ${SRC_DIR}/sysd_fru.c ${SRC_DIR}/sysd_ovsdb_if.c
-                     ${SRC_DIR}/sysd_util.c)
-endif ()
+set (SOURCES ${SRC_DIR}/sysd.c
+             ${SRC_DIR}/sysd_cfg_yaml.c
+             ${SRC_DIR}/sysd_fru.c
+             ${SRC_DIR}/sysd_ovsdb_if.c
+             ${SRC_DIR}/qos_init.c
+             ${SRC_DIR}/sysd_util.c)
 
 # Rules to build ops-sysd
 add_executable (${SYSD} ${SOURCES})
 
 target_link_libraries (${SYSD} ${OPSUTILS_LIBRARIES} ${CONFIG_YAML_LIBRARIES}
                        ${OVSCOMMON_LIBRARIES} ${OVSDB_LIBRARIES} ${ZLIB_LIBRARIES}
-                       -lpthread -lrt)
+                       -lpthread -lrt -lsupportability -lyaml)
 
 # The default install prefix is /usr. We want to install manifest file at
 # '/etc/openswitch'. So change the install prefix to '/', and use relative

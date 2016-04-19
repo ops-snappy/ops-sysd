@@ -44,6 +44,8 @@
 #include "sysd_util.h"
 #include "sysd_ovsdb_if.h"
 
+#include "eventlog.h"
+
 VLOG_DEFINE_THIS_MODULE(ops_sysd);
 
 /** @ingroup ops-sysd
@@ -114,6 +116,7 @@ sysd_get_subsystem_info(void)
     rc = sysd_read_fru_eeprom(&(subsystems[0]->fru_eeprom));
     if (rc) {
         VLOG_ERR("Failed to read FRU data from base system.");
+        log_event("SYS_FRU_DATA_READ_FAILURE", NULL);
         return -1;
     }
 
@@ -170,6 +173,8 @@ sysd_get_interface_info(void)
     interfaces = (sysd_intf_info_t **) calloc(intf_count, sizeof(sysd_intf_info_t *));
     if (interfaces == (sysd_intf_info_t **)NULL) {
         VLOG_ERR("Failed to allocate memory for interface strcture.");
+        log_event("SYS_ALLOCATE_MEMORY_FAILURE", EV_KV("value",
+            "%s", "interface structure"));
         return -1;
     }
 
@@ -374,6 +379,7 @@ main(int argc, char *argv[])
     char    *ovsdb_sock = NULL;
     int     rc = 0;
     int     exiting = 0;
+    int     retval;
 
     struct unixctl_server   *appctl = NULL;
 
@@ -389,6 +395,11 @@ main(int argc, char *argv[])
     /* Fork and return in child process; but don't notify parent of
      * startup completion yet. */
     daemonize_start();
+
+    retval = event_log_init("SYS");
+    if(retval < 0) {
+        VLOG_ERR("Event log initialization failed for SYS");
+    }
 
     /* Create UDS connection for ovs-appctl. */
     rc = unixctl_server_create(appctl_path, &appctl);

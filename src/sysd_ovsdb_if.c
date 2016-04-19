@@ -41,16 +41,37 @@
 
 #include <ops-utils.h>
 #include <config-yaml.h>
+#include <yaml.h>
+#include "qos_init.h"
 #include "sysd.h"
 #include "sysd_util.h"
 #include "sysd_ovsdb_if.h"
-
-#define PKG_INFO_MAX_LEN 128
+#include "eventlog.h"
 
 VLOG_DEFINE_THIS_MODULE(ovsdb_if);
 
 /** @ingroup sysd
  * @{ */
+#define PKG_INFO_ENTRIES_PER_COMMIT 2000
+
+enum {
+    VALUE,
+    PKG,
+    PV,
+    SRCREV,
+    SRC_URL,
+    TYPE,
+    MAX_NUM_KEYS
+};
+
+const char * keystr_pkg_info[MAX_NUM_KEYS] = {
+    "values",
+    "PKG",
+    "PV",
+    "SRCREV",
+    "SRC_URL",
+    "TYPE",
+};
 
 extern char *g_hw_desc_dir;
 
@@ -288,6 +309,8 @@ sysd_initial_subsystem_add(struct ovsdb_idl_txn *txn, sysd_subsystem_t *subsys_p
     ovs_intf = SYSD_OVS_PTR_CALLOC(ovsrec_interface *, subsys_ptr->intf_count);
     if (ovs_intf == NULL) {
         VLOG_ERR("Failed to allocate memory for OVS subsystem interfaces.");
+        log_event("SYS_ALLOCATE_MEMORY_FAILURE", EV_KV("value",
+            "%s", "OVS subsystem interfaces"));
         return ovs_subsys;
     }
 
@@ -387,104 +410,170 @@ sysd_configure_default_vrf(struct ovsdb_idl_txn *txn,
 }/* sysd_configure_default_vrf */
 
 /*
+ * Helper function to parse version_detail yaml file.
+ */
+static int
+package_info_mapping_check_key(const char *data)
+{
+    int i = PKG;
+    for (i = PKG; i < MAX_NUM_KEYS; i++) {
+        if ((data != NULL) && (keystr_pkg_info[i] != NULL) &&
+            (!strcmp(keystr_pkg_info[i], data))) {
+            return i;
+        }
+    }
+    /* Data didn't match any of the token names, hence it should be a value */
+    return VALUE;
+}
+
+/*
  * Function to populate source url, type and version of each package/daemon
- * extracted from /var/lib/version_detail file to "Package_Info"
+ * extracted from /var/lib/version_detail.yaml file to "Package_Info"
  * table in OVSDB.
  */
 static void
-sysd_add_package_info(struct ovsdb_idl_txn *status_txn)
+sysd_add_package_info()
 {
-    FILE   *ver_detail_fp              = NULL;
-    char   *file_line                  = NULL;
-    char   *p_field                    = NULL;
-    char   name[PKG_INFO_MAX_LEN]      = "";
-    char   type[PKG_INFO_MAX_LEN]      = "";
-    char   src_url[PKG_INFO_MAX_LEN]   = "";
-    char   version[PKG_INFO_MAX_LEN]   = "";
-    char   git_hash[PKG_INFO_MAX_LEN]  = "";
-    size_t line_len                    = 0;
-    struct ovsrec_package_info *row = NULL;
+    FILE * fh         = NULL;
+    int event_value   = 0;
+    int current_state = 0;
+    int record_count  = 0;
+    int done          = 0;
+    yaml_parser_t parser;
+    yaml_event_t event;
+    struct ovsrec_package_info *row  = NULL;
+    struct ovsdb_idl_txn       *txn  = NULL;
+    enum ovsdb_idl_txn_status  txn_status = TXN_ERROR;
 
-    /* Open version_detail file containing version information. */
-    ver_detail_fp = fopen(VERSION_DETAIL_FILE_PATH, "r");
-    if (NULL == ver_detail_fp) {
-        VLOG_ERR("File %s was not found", VERSION_DETAIL_FILE_PATH);
+    /* Initialize parser */
+    if (!yaml_parser_initialize(&parser)) {
+        VLOG_ERR("Failed to initialize parser\n");
         return;
     }
 
-    if (NULL == status_txn) {
+    /* Open /var/lib/version_detail.yaml file */
+    fh = fopen(VERSION_DETAIL_FILE_PATH, "r");
+    if (NULL == fh) {
+        VLOG_ERR("Failed to open file %s\n",VERSION_DETAIL_FILE_PATH);
+        yaml_parser_delete(&parser);
         return;
     }
+
+    /* Set input file */
+    yaml_parser_set_input_file(&parser, fh);
 
     /*
      * Parse version_detail file line-wise to extract package/daemon name,
      * corresponding type, version and its source-URL.
      */
-    while (getline(&file_line, &line_len, ver_detail_fp) != -1) {
-        sscanf(file_line, "%s %s %s %s %s", name, git_hash, version, type, src_url);
 
-        row = ovsrec_package_info_insert(status_txn);
+    while (!done) {
 
-        if (NULL == row) {
-            VLOG_ERR("Could not insert a row into DB\n");
-            return;
+        if (!yaml_parser_parse(&parser, &event)) {
+            break;
         }
 
-        /* Set Package_Info name value */
-        p_field = strstr(name, "PKG=");
-        if (p_field && ((p_field + strlen("PKG="))
-            - name < PKG_INFO_MAX_LEN)) {
-            p_field += strlen("PKG=");
-            ovsrec_package_info_set_name(row, p_field);
-        }
+        if (event.type == YAML_SCALAR_EVENT) {
+            event_value = package_info_mapping_check_key ((const char *)
+            event.data.scalar.value);
+            switch (event_value) {
+                case VALUE:
+                {
+                    switch(current_state) {
+                        case PKG:
+                            if ((record_count % PKG_INFO_ENTRIES_PER_COMMIT) == 0) {
+                                txn = ovsdb_idl_txn_create(idl);
+                            }
+                            row = ovsrec_package_info_insert(txn);
+                            if (NULL == row) {
+                                VLOG_ERR("Could not insert a row into DB\n");
+                                /* Cleanup */
+                                yaml_event_delete(&event);
+                                yaml_parser_delete(&parser);
+                                fclose(fh);
+                                ovsdb_idl_txn_destroy(txn);
+                                return;
+                            }
+                            ovsrec_package_info_set_name(row,
+                            (const char *)event.data.scalar.value);
+                            break;
+                        case PV:
+                            ovsrec_package_info_set_version(row,
+                            (const char *)event.data.scalar.value);
+                            break;
+                        case SRCREV:
+                            if(((const char*)event.data.scalar.value != NULL)
+                            && strcmp((const char*)event.data.scalar.value,
+                            "INVALID")) {
+                                ovsrec_package_info_set_version(row,
+                                (const char *)event.data.scalar.value);
+                            }
+                            break;
+                        case SRC_URL:
+                            ovsrec_package_info_set_src_url(row,
+                            (const char *)event.data.scalar.value);
+                            break;
+                        case TYPE:
+                            record_count++;
+                            ovsrec_package_info_set_src_type(row,
+                            (const char *)event.data.scalar.value);
 
-        /* Set Package_Info version value */
-        p_field = strstr(git_hash, "SRCREV=INVALID");
-        if (NULL == p_field) {
-            p_field = strstr(git_hash, "SRCREV=");
-            if (p_field && ((p_field + strlen("SRCREV="))
-                - git_hash < PKG_INFO_MAX_LEN)) {
-                p_field += strlen("SRCREV=");
-                ovsrec_package_info_set_version(row, p_field);
+                            /*
+                             * Commit the transaction for every
+                             * PKG_INFO_ENTRIES_PER_COMMIT entries
+                             */
+                            if ((record_count % PKG_INFO_ENTRIES_PER_COMMIT)
+                                == 0) {
+                                txn_status = ovsdb_idl_txn_commit_block(txn);
+                                VLOG_INFO("Populating Package_Info with"
+                                          "%d entries\n", record_count);
+                                if (txn_status != TXN_SUCCESS) {
+                                    VLOG_ERR("Commit failed to Package_Info."
+                                             "rc = %u", txn_status);
+                                }
+                                ovsdb_idl_txn_destroy(txn);
+                                txn = NULL;
+                            }
+                            break;
+                    }
+                }
+                break;
+                case PKG:
+                    current_state = PKG;
+                    break;
+                case PV:
+                    current_state = PV;
+                    break;
+                case SRCREV:
+                    current_state = SRCREV;
+                    break;
+                case SRC_URL:
+                    current_state = SRC_URL;
+                    break;
+                case TYPE:
+                    current_state = TYPE;
+                    break;
             }
-        } else {
-            p_field = strstr(version, "PV=");
-            if (p_field && ((p_field + strlen("PV="))
-                - version < PKG_INFO_MAX_LEN)) {
-                p_field += strlen("PV=");
-                ovsrec_package_info_set_version(row, p_field);
-            }
         }
 
-        /* Set Package_Info src_type value */
-        p_field = strstr(type, "TYPE=");
-        if (p_field && ((p_field + strlen("TYPE="))
-            - type < PKG_INFO_MAX_LEN)) {
-            p_field += strlen("TYPE=");
-            ovsrec_package_info_set_src_type(row, p_field);
-        }
+        done = (event.type == YAML_STREAM_END_EVENT);
 
-        /* Set Package_Info src_url value */
-        p_field = strstr(src_url, "SRC_URL=");
-        if (p_field && ((p_field + strlen("SRC_URL="))
-            - src_url < PKG_INFO_MAX_LEN)) {
-            p_field += strlen("SRC_URL=");
-            ovsrec_package_info_set_src_url(row, p_field);
-        }
-
-        /* Reset values */
-        name[0]     = '\0';
-        type[0]     = '\0';
-        git_hash[0] = '\0';
-        version[0]  = '\0';
-        src_url[0]  = '\0';
+        yaml_event_delete(&event);
     }
 
-    /* Free the memory allocated by getline() */
-    if (NULL != file_line) {
-        free(file_line);
+    if (txn != NULL) {
+        txn_status = ovsdb_idl_txn_commit_block(txn);
+        VLOG_INFO("Populating Package_Info with %d entries\n", record_count);
+        if (txn_status != TXN_SUCCESS) {
+            VLOG_ERR("Commit failed to Package_Info. rc = %u", txn_status);
+        }
+        ovsdb_idl_txn_destroy(txn);
+        txn = NULL;
     }
-    fclose(ver_detail_fp);
+
+    /* Cleanup */
+    yaml_parser_delete(&parser);
+    fclose(fh);
 
 } /* sysd_add_package_info */
 
@@ -627,6 +716,8 @@ sysd_initial_configure(struct ovsdb_idl_txn *txn)
     ovs_subsys_l = SYSD_OVS_PTR_CALLOC(ovsrec_subsystem *, num_subsystems);
     if (ovs_subsys_l == NULL) {
         VLOG_ERR("Failed to allocate memory for OVS subsystem.");
+        log_event("SYS_ALLOCATE_MEMORY_FAILURE", EV_KV("value",
+            "%s", "OVS subsystem"));
         return;
     }
 
@@ -640,6 +731,8 @@ sysd_initial_configure(struct ovsdb_idl_txn *txn)
     ovs_daemon_l = SYSD_OVS_PTR_CALLOC(ovsrec_daemon *, num_daemons);
     if (ovs_daemon_l == NULL) {
         VLOG_ERR("Failed to allocate memory for OVS daemon table.");
+        log_event("SYS_ALLOCATE_MEMORY_FAILURE", EV_KV("value",
+            "%s", "OVS daemon table"));
         return;
     }
 
@@ -657,9 +750,12 @@ sysd_initial_configure(struct ovsdb_idl_txn *txn)
      */
     sysd_update_sw_info(sys);
 
-    /* Populate source url and version of packages/daemon present in image */
-    sysd_add_package_info(txn);
-
+    /* QoS init */
+    qos_init_trust(txn, sys);
+    qos_init_dscp_map(txn, sys);
+    qos_init_cos_map(txn, sys);
+    qos_init_queue_profile(txn, sys);
+    qos_init_schedule_profile(txn, sys);
 } /* sysd_initial_configure */
 
 static void
@@ -796,20 +892,14 @@ sysd_run(void)
             /* Update the software information. */
             sysd_update_sw_info(cfg);
 
-            txn = ovsdb_idl_txn_create(idl);
-
-            /* Populate source url and version of packages/daemon present in image */
-            sysd_add_package_info(txn);
-
-            txn_status = ovsdb_idl_txn_commit_block(txn);
-            if (txn_status != TXN_SUCCESS) {
-                VLOG_ERR("Failed to commit the transaction. rc = %u", txn_status);
-            }
-            ovsdb_idl_txn_destroy(txn);
-
             if (!hw_init_done_set) {
                 sysd_chk_if_hw_daemons_done();
             }
+        }
+
+        /* Populate source url and version of packages/daemon present in image */
+        if (ovsrec_package_info_first(idl) == NULL) {
+            sysd_add_package_info();
         }
     }
 
