@@ -45,11 +45,15 @@
 #include "sysd_ovsdb_if.h"
 
 #include "eventlog.h"
+#include "diag_dump.h"
 
 VLOG_DEFINE_THIS_MODULE(ops_sysd);
 
 /** @ingroup ops-sysd
  * @{ */
+
+#define BUF_LEN 16000
+#define MAX_ERR_STR_LEN 255
 
 /* OVSDB IDL used to obtain configuration. */
 struct ovsdb_idl *idl;
@@ -67,21 +71,51 @@ int num_hw_daemons = 0;
 /* Structure to store management info read */
 mgmt_intf_info_t *mgmt_intf = NULL;
 
+/*
+ * Function       : sysd_diag_dump_basic_cb
+ * Responsibility : callback handler function for diagnostic dump basic
+ *                  it allocates memory as per requirment and populates data.
+ *                  INIT_DIAG_DUMP_BASIC will free allocated memory.
+ * Parameters     : feature name string, buffer ptr
+ * Returns        : void
+ */
+
+static void
+sysd_diag_dump_basic_cb(const char *feature , char **buf)
+{
+    if (!buf)
+        return;
+    *buf =  xcalloc(1, BUF_LEN);
+    if (*buf) {
+        /* populate basic diagnostic data to buffer  */
+        sysd_dump(*buf, BUF_LEN);
+        VLOG_DBG("basic diag-dump data populated for feature %s",
+                feature);
+    } else{
+        VLOG_ERR("Memory allocation failed for feature %s, %d bytes",
+                feature, BUF_LEN);
+    }
+}
+
+/* Dumps debug data for entire daemon */
 static void
 sysd_unixctl_dump(struct unixctl_conn *conn, int argc OVS_UNUSED,
                           const char *argv[] OVS_UNUSED, void *aux OVS_UNUSED)
 {
-    struct ds ds = DS_EMPTY_INITIALIZER;
+    char err_str[MAX_ERR_STR_LEN];
+    char *buf = xcalloc(1, BUF_LEN);
 
-    ds_put_cstr(&ds, "================ Interfaces ================\n");
-
-/*    SHASH_FOR_EACH(sh_node, &all_interfaces) {
-        ds_put_format(&ds, "\n",);
+    /* Dump the daemon info */
+    if (buf){
+        strcpy(buf, "Support Dump for Platform SYS Daemon (ops-sysd)\n\n");
+        sysd_dump(buf, BUF_LEN);
+        unixctl_command_reply(conn, buf);
+        free(buf);
+    } else {
+        snprintf(err_str, sizeof(err_str),
+                "sysd daemon failed to allocate %d bytes\n", BUF_LEN);
+        unixctl_command_reply(conn, err_str);
     }
-*/
-    unixctl_command_reply(conn, ds_cstr(&ds));
-    ds_destroy(&ds);
-
 } /* sysd_unixctl_dump */
 
 static int
@@ -275,6 +309,9 @@ sysd_ovsdb_conn_init(char *remote)
     ovsdb_idl_omit_alert(idl, &ovsrec_package_info_col_src_url);
     ovsdb_idl_add_column(idl, &ovsrec_package_info_col_version);
     ovsdb_idl_omit_alert(idl, &ovsrec_package_info_col_version);
+
+    INIT_DIAG_DUMP_BASIC(sysd_diag_dump_basic_cb);
+
     return;
 
 } /* sysd_ovsdb_conn_init */

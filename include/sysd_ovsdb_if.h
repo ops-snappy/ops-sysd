@@ -31,6 +31,7 @@
 #define SYSD_OVS_PTR_CALLOC(OVS_STR, count)		\
 			(struct  OVS_STR *) calloc(sizeof(struct OVS_STR), count)
 
+void sysd_dump(char* buf, int buflen);
 void sysd_run(void);
 void sysd_wait(void);
 

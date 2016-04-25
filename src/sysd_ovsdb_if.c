@@ -53,6 +53,7 @@ VLOG_DEFINE_THIS_MODULE(ovsdb_if);
 /** @ingroup sysd
  * @{ */
 #define PKG_INFO_ENTRIES_PER_COMMIT 2000
+#define REM_BUF_LEN (buflen - 1 - strlen(buf))
 
 enum {
     VALUE,
@@ -907,6 +908,44 @@ sysd_run(void)
     daemonize_complete();
 
 } /* sysd_run */
+
+/*
+ * Function       : sysd_dump
+ * Responsibility : populates buffer for unixctl reply
+ * Parameters     : buffer, buffer length
+ * Returns        : void
+ */
+
+void
+sysd_dump(char* buf, int buflen)
+{
+    char tmp_buf[100];
+    int i = 0;
+
+    /* Loop through all daemons */
+
+    strcpy(buf, "=============== Daemon Info =========================\n");
+    strncat(buf, "Name\t\t\tis_hw_handler\t\t\tcur_hw\n", REM_BUF_LEN);
+
+    while((num_hw_daemons - 1) >= i) {
+        strncat(buf, daemons[i]->name, REM_BUF_LEN);
+        strncat(buf, "\t\t\t", REM_BUF_LEN);
+        sprintf(tmp_buf, "%d", daemons[i]->is_hw_handler);
+        strncat(buf, tmp_buf, REM_BUF_LEN);
+        strncat(buf, "\t\t\t", REM_BUF_LEN);
+        strcpy(tmp_buf, "\0");
+        sprintf(tmp_buf, "%ld", daemons[i]->cur_hw);
+        strncat(buf, tmp_buf, REM_BUF_LEN);
+        strncat(buf, "\n", REM_BUF_LEN);
+        i++;
+    }
+
+    /* mgmt_intf */
+    strncat(buf, "=============== Mgmt_intf Info ==========================\n",
+            REM_BUF_LEN);
+    strncat(buf, mgmt_intf->name, REM_BUF_LEN);
+    strncat(buf, "\n", REM_BUF_LEN);
+}
 
 void
 sysd_wait(void)
